@@ -121,6 +121,15 @@ void ESGUI_DefaultMessagePopWindowCreate(ESGUI_PopWindow_T *window,
 
 #endif /* ESGUI_ENABLE_POPUP_MESSAGE */
 
+#if ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE
+
+void esgui_default_message_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page);
+void esgui_default_message_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page);
+void ESGUI_DefaultMessageScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window,
+    const char* message, uint16_t window_w, uint16_t window_h, _Bool button_en);
+
+#endif /* ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE */
+
 /* ========== 布尔弹窗 ========== */
 #if ESGUI_ENABLE_POPUP_BOOL
 
@@ -134,6 +143,16 @@ void ESGUI_DefaultBoolPopWindowCreate(ESGUI_PopWindow_T *window, const char* mes
                                         uint16_t window_w, uint16_t window_h, bool *boo_val);
 
 #endif /* ESGUI_ENABLE_POPUP_BOOL */
+
+#if ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE
+
+void esgui_default_bool_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page);
+void esgui_default_bool_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page);
+void esgui_default_bool_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page);
+void ESGUI_DefaultBoolScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
+                                                    uint16_t window_w, uint16_t window_h, bool *boo_val);
+
+#endif /* ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE */
 
 /* ========== 值弹窗 ========== */
 #if ESGUI_ENABLE_POPUP_VALUE
@@ -149,6 +168,16 @@ void ESGUI_DefaultValuePopWindowCreate(ESGUI_PopWindow_T *window, const char* me
 
 #endif /* ESGUI_ENABLE_POPUP_VALUE */
 
+#if ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE
+
+void esgui_default_value_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page);
+void esgui_default_value_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page);
+void esgui_default_value_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page);
+void ESGUI_DefaultValueScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
+                                                    uint16_t window_w, uint16_t window_h, ESGUI_ValueDesc_T *value_desc);
+
+#endif /* ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE */
+
 /* ========== 文本列表弹窗 ========== */
 #if ESGUI_ENABLE_POPUP_TEXTLIST
 
@@ -162,6 +191,16 @@ void ESGUI_DefaultTextListPopWindowCreate(ESGUI_PopWindow_T *window, uint16_t wi
                                             ESGUI_MenuItem_T *items, size_t item_num);
 
 #endif /* ESGUI_ENABLE_POPUP_TEXTLIST */
+
+#if ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE
+
+void esgui_default_text_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page);
+void esgui_default_text_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page);
+void esgui_default_text_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page);
+void ESGUI_DefaultTextListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title, uint16_t window_w, uint16_t window_h,
+                                                        ESGUI_MenuItem_T *items, size_t item_num);
+
+#endif /* ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE */
 
 /* ========== BMP 列表弹窗 ========== */
 #if ESGUI_ENABLE_POPUP_BMPLIST
@@ -177,6 +216,17 @@ void ESGUI_DefaultBMPListPopWindowCreate(ESGUI_PopWindow_T *window, const char *
                                          ESGUI_MenuItem_T *items, size_t item_num);
 
 #endif /* ESGUI_ENABLE_POPUP_BMPLIST */
+
+#if ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
+
+void esgui_default_bmp_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page);
+void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page);
+void esgui_default_bmp_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page);
+void ESGUI_DefaultBMPListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title,
+                                                      uint16_t window_w, uint16_t window_h,
+                                                      ESGUI_MenuItem_T *items, size_t item_num);
+
+#endif /* ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE */
 
 #ifdef __cplusplus
 }
