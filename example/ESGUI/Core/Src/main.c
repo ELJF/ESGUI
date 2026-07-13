@@ -105,13 +105,14 @@ int main(void)
   MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
 
+#define oled_h 64
 
   OLED_Init(&oled1,
     &hspi2,
     OLED_DC_GPIO_Port,OLED_DC_Pin,
     OLED_RES_GPIO_Port,OLED_RES_Pin,
     NULL,0,
-    128,64);
+    128,oled_h);
 
   EC11_OBJ_T ec11;
 
@@ -132,7 +133,7 @@ int main(void)
   //初始化ESGUI框架
   ESGUI_Init(&ui,&text_page,ESGUI_CanvasRefresh_CB,ESGUI_AnimTick_CB);
   //绑定绘图库为默认的Canvas绘图库
-  ESGUI_BindCanvas(&ui,&c,&c_it,oled1.oled_gram,128,64,64);
+  ESGUI_BindCanvas(&ui,&c,&c_it,oled1.oled_gram,128,oled_h,oled_h);
   eui_test_page_init();
 
   uint32_t now_ms = 0;

@@ -136,11 +136,27 @@
  * 三、弹窗类型裁剪（按需关闭可大幅减小 Flash 占用）
  * ============================================================ */
 
+#ifndef ESGUI_POPUP_TITLE_SCROLL_MARGIN
+/**
+ * @brief 弹窗滚动标题与左右边界的最小间距（像素）
+ * @note  标题长度超过弹窗宽度减去 2*本值时，自动启动水平滚动动画
+ */
+#define ESGUI_POPUP_TITLE_SCROLL_MARGIN    3
+#endif
+
 #ifndef ESGUI_ENABLE_POPUP_MESSAGE
 /**
  * @brief 使能消息弹窗（单按钮提示框）
  */
 #define ESGUI_ENABLE_POPUP_MESSAGE   1
+#endif
+
+#ifndef ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE
+/**
+ * @brief 使能消息弹窗滚动标题版本
+ * @note  标题过长时自动水平滚动，需同时开启 ESGUI_ENABLE_POPUP_MESSAGE
+ */
+#define ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE  1
 #endif
 
 #ifndef ESGUI_ENABLE_POPUP_BOOL
@@ -150,11 +166,25 @@
 #define ESGUI_ENABLE_POPUP_BOOL      1
 #endif
 
+#ifndef ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE
+/**
+ * @brief 使能布尔弹窗滚动标题版本
+ */
+#define ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE     1
+#endif
+
 #ifndef ESGUI_ENABLE_POPUP_VALUE
 /**
  * @brief 使能值弹窗（带进度条数值调节）
  */
 #define ESGUI_ENABLE_POPUP_VALUE     1
+#endif
+
+#ifndef ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE
+/**
+ * @brief 使能值弹窗滚动标题版本
+ */
+#define ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE    1
 #endif
 
 #ifndef ESGUI_ENABLE_POPUP_TEXTLIST
@@ -164,11 +194,26 @@
 #define ESGUI_ENABLE_POPUP_TEXTLIST  1
 #endif
 
+#ifndef ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE
+/**
+ * @brief 使能文本列表弹窗滚动标题版本
+ * @note  原版不显示标题，此版本增加标题栏支持
+ */
+#define ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE 1
+#endif
+
 #ifndef ESGUI_ENABLE_POPUP_BMPLIST
 /**
  * @brief 使能 BMP 列表弹窗（在弹窗内显示可滚动图片列表）
  */
 #define ESGUI_ENABLE_POPUP_BMPLIST   1
+#endif
+
+#ifndef ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
+/**
+ * @brief 使能 BMP 列表弹窗滚动标题版本
+ */
+#define ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE  1
 #endif
 
 

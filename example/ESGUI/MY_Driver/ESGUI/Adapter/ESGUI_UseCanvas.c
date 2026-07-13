@@ -76,6 +76,7 @@ void ESGUI_AnimTick_CB(ESGUI_T *ui, uint32_t tick) {
     anim_update(tick);
 
     if(anim_is_running()) {
+
         ui->menu_ctrl.anim_running = 1;
         ui->menu_ctrl.need_refresh = 1;
 
@@ -91,8 +92,6 @@ void ESGUI_AnimTick_CB(ESGUI_T *ui, uint32_t tick) {
         ui->menu_ctrl.anim_running = 0;
         ui->menu_ctrl.pending_done = 1;
         anim_must_complete_reset();
-        /* 关键：动画刚结束，必须再刷新一帧，把最终无掩码画面送屏 */
-        ui->menu_ctrl.need_refresh = 1;
     }
 }
 

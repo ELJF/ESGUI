@@ -111,7 +111,8 @@ static ESGUI_MenuItem_T bmp_list_popwindow_item[] =
 //文本菜单----消息弹窗条目回调
 static ESGUI_MenuAction_T message_window_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
     //创建默认消息弹窗
-    ESGUI_DefaultMessagePopWindowCreate(&pop_window,"TEST MESSAGE\n123",100,50,1);
+    // ESGUI_DefaultMessagePopWindowCreate(&pop_window,"TEST MESSAGE\n123",100,50,1);
+    ESGUI_DefaultMessageScrollTitlePopWindowCreate(&pop_window,"TEST MESSAGE 123",100,50,1);
     return (ESGUI_MenuAction_T){ACT_SHOW_POPUP,&pop_window};
 }
 
@@ -119,7 +120,8 @@ static ESGUI_MenuAction_T message_window_item_on_enter(ESGUI_MenuPage_T *page,vo
 //文本菜单----布尔弹窗条目回调
 static ESGUI_MenuAction_T bool_window_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
     //创建默认布尔弹窗
-    ESGUI_DefaultBoolPopWindowCreate(&pop_window,"  Bool Pop\n  Window",100,50,arg);
+    // ESGUI_DefaultBoolPopWindowCreate(&pop_window,"  Bool Pop\n  Window",100,50,arg);
+    ESGUI_DefaultBoolScrollTitlePopWindowCreate(&pop_window,"  Bool Pop  Window",100,50,arg);
     return (ESGUI_MenuAction_T){ACT_SHOW_POPUP,&pop_window};
 }
 
@@ -127,7 +129,8 @@ static ESGUI_MenuAction_T bool_window_item_on_enter(ESGUI_MenuPage_T *page,void 
 //文本菜单----值弹窗条目回调
 static ESGUI_MenuAction_T value_window_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
     //创建默认值弹窗
-    ESGUI_DefaultValuePopWindowCreate(&pop_window,"  Value Pop\n  Window",100,50,&value_desc);
+    // ESGUI_DefaultValuePopWindowCreate(&pop_window,"  Value Pop\n  Window",100,50,&value_desc);
+    ESGUI_DefaultValueScrollTitlePopWindowCreate(&pop_window,"  Value Pop  Window",100,50,&value_desc);
     return (ESGUI_MenuAction_T){ACT_SHOW_POPUP,&pop_window};
 }
 
@@ -135,7 +138,8 @@ static ESGUI_MenuAction_T value_window_item_on_enter(ESGUI_MenuPage_T *page,void
 //文本菜单----文本列表条目回调
 static ESGUI_MenuAction_T text_list_window_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
     //创建默认文本列表弹窗
-    ESGUI_DefaultTextListPopWindowCreate(&pop_window,100,50,text_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(text_list_popwindow_item));
+    // ESGUI_DefaultTextListPopWindowCreate(&pop_window,100,50,text_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(text_list_popwindow_item));
+    ESGUI_DefaultTextListScrollTitlePopWindowCreate(&pop_window,"长标题12345789------abcdef",100,50,text_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(text_list_popwindow_item));
     return (ESGUI_MenuAction_T){ACT_SHOW_POPUP,&pop_window};
 }
 
@@ -147,7 +151,8 @@ static ESGUI_MenuAction_T text_list_window_item_on_enter(ESGUI_MenuPage_T *page,
 
 //图形菜单----图片条目回调
 static ESGUI_MenuAction_T bmp_list_window_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
-    ESGUI_DefaultBMPListPopWindowCreate(&pop_window,"BMP W",100,50,bmp_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(bmp_list_popwindow_item));
+    // ESGUI_DefaultBMPListPopWindowCreate(&pop_window,"BMP W",100,50,bmp_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(bmp_list_popwindow_item));
+    ESGUI_DefaultBMPListScrollTitlePopWindowCreate(&pop_window,"BMP W------0123456----",100,50,bmp_list_popwindow_item,ESGUI_ITEM_NUM_COUNT(bmp_list_popwindow_item));
     return (ESGUI_MenuAction_T){ACT_SHOW_POPUP,&pop_window};
 }
 

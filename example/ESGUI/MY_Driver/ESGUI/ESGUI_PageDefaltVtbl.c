@@ -243,16 +243,16 @@ static void calc_visible_range(
     }
     if (focus_idx < stay) {
         *out_start = 0;
-        *out_end   = stay + 1;
+        /* 修复：顶部区域固定显示前 buff 条，避免 stay+1 在 buff=2/3 时越界 */
+        *out_end   = buff - 1;
+        if (*out_end >= item_num) *out_end = item_num - 1;
     } else if (focus_idx < item_num - (buff / 2)) {
         *out_start = focus_idx - stay + 1;
         *out_end   = *out_start + buff - 1;
+        if (*out_end >= item_num) *out_end = item_num - 1;
     } else {
         *out_start = item_num - buff;
         *out_end   = item_num - 1;
-    }
-    if (*out_end >= item_num) {
-        *out_end = item_num - 1;
     }
 }
 
@@ -1618,6 +1618,8 @@ typedef struct esgui_default_message_window_dat {
     uint16_t text_len;      /**< OK 按钮文本宽度 */
     uint16_t font_height;   /**< 字体高度 */
     uint8_t button_en;      /**< 是否显示 OK 按钮 */
+    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_MESSAGE_WINDOW_DAT;
 
 /**
@@ -1756,6 +1758,187 @@ void ESGUI_DefaultMessagePopWindowCreate(ESGUI_PopWindow_T *window,const char* m
 #endif /* ESGUI_ENABLE_POPUP_MESSAGE */
 
 
+
+
+
+
+#if ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE || ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE ||  \
+    ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE || ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE   ||\
+ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
+/**
+ * @brief 启动弹窗标题水平滚动动画
+ * @param window         弹窗指针
+ * @param title_scroll_x 指向标题滚动 X 偏移的指针
+ * @param title_len      标题文本宽度（像素）
+ * @note  当标题长度超过弹窗宽度减去 2*ESGUI_POPUP_TITLE_SCROLL_MARGIN 时启动。
+ *        使用线性曲线，无限循环，延迟 400ms 后开始。
+ */
+static void start_popup_title_scroll_anim(ESGUI_PopWindow_T *window, int16_t *title_scroll_x, uint16_t title_len)
+{
+    if (window == NULL || title_scroll_x == NULL) return;
+    int16_t max_w = (int16_t)window->window_w - 2 * (int16_t)ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    if (max_w <= 0 || (int16_t)title_len <= max_w) return;
+    anim_t anim = {0};
+    anim.var        = title_scroll_x;
+    anim.start      = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    anim.end        = -(int32_t)title_len - (int32_t)ESGUI_LONG_TEXT_GAP;
+    anim.exec_cb    = anim_cb_int16;
+    anim.duration   = 4500;
+    anim.path_type  = ANIM_PATH_LINEAR;
+    anim.repeat_cnt = 0xFFFF;
+    anim.delay      = 400;
+    anim_start(&anim);
+}
+
+/**
+ * @brief 绘制弹窗滚动标题（两段循环实现）
+ * @param c_it      Canvas 迭代器指针
+ * @param window    弹窗指针
+ * @param data      弹窗私有数据（需包含 title_len 和 title_scroll_x）
+ * @param title_len 标题文本宽度
+ * @param title_scroll_x 标题滚动当前 X 偏移
+ * @note  在弹窗裁剪区内绘制，支持超长标题循环滚动。
+ */
+static void draw_popup_scrolling_title(CanvasStripIter *c_it, ESGUI_PopWindow_T *window,
+    uint16_t title_len, int16_t title_scroll_x)
+{
+    if (c_it == NULL || window == NULL || !window->title || !window->title[0]) return;
+    int16_t margin = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    int16_t y = window->window_y + margin;
+    int16_t max_w = (int16_t)window->window_w - 2 * margin;
+
+    if (max_w <= 0) return;
+
+    if ((int16_t)title_len <= max_w) {
+        /* 标题不需要滚动：左对齐绘制 */
+        eui_draw_text_clip(c_it->canvas,
+            window->window_x + margin, y,
+            &ESGUI_DEFAULT_FONT, window->title, EUI_MODE_SET, max_w);
+        return;
+    }
+
+    /* 第一段文本 */
+    int16_t abs_x = (title_scroll_x < 0) ? -title_scroll_x : title_scroll_x;
+    int16_t w1 = max_w + abs_x - margin;
+    if (w1 > (int16_t)title_len) w1 = (int16_t)title_len;
+    if (w1 < 0) w1 = 0;
+    eui_draw_text_clip(c_it->canvas,
+        window->window_x + title_scroll_x, y,
+        &ESGUI_DEFAULT_FONT, window->title, EUI_MODE_SET, w1);
+
+    /* 第二段（循环衔接） */
+    int32_t text_plus_x = (int32_t)title_len + (int32_t)title_scroll_x;
+    int16_t text_area_right = (int16_t)window->window_w - margin;
+    int16_t remain = text_area_right - (int16_t)text_plus_x;
+    if (remain >= (int16_t)ESGUI_LONG_TEXT_GAP) {
+        int16_t X2 = title_scroll_x + (int16_t)title_len + (int16_t)ESGUI_LONG_TEXT_GAP + 2;
+        int16_t w2 = text_area_right - X2;
+        if (w2 > (int16_t)title_len) w2 = (int16_t)title_len;
+        if (w2 < 0) w2 = 0;
+        eui_draw_text_clip(c_it->canvas,
+            window->window_x + X2, y,
+            &ESGUI_DEFAULT_FONT, window->title, EUI_MODE_SET, w2);
+    }
+}
+
+#endif
+
+
+
+
+
+
+/* ---------- 6.1b 消息弹窗滚动标题版本 ---------- */
+
+#if ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE
+
+/**
+ * @brief 消息弹窗滚动标题版本创建回调
+ * @note  复用原版创建逻辑，额外计算标题宽度并启动滚动动画。
+ */
+void esgui_default_message_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
+    esgui_default_message_popwindow_on_create(page);
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = window->draw_data;
+    if (data == NULL || !window->title || !window->title[0]) return;
+    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
+}
+
+/**
+ * @brief 消息弹窗滚动标题版本绘制回调
+ * @note  使用 draw_popup_scrolling_title 替代固定文本绘制，其余与原版一致。
+ */
+void esgui_default_message_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = window->draw_data;
+    if (data == NULL) return;
+    Area a = {window->window_x, window->window_y, window->window_x + window->window_w, window->window_y + window->window_h};
+    canvas_clip_push(c_it->canvas, &a);
+    eui_draw_round_rect_box(c_it->canvas, window->window_x, window->window_y,
+        window->window_x + window->window_w, window->window_y + window->window_h, 5, EUI_MODE_SET);
+    draw_popup_scrolling_title(c_it, window, data->title_len, data->title_scroll_x);
+    if (data->button_en) {
+        int x = (window->window_w - data->text_len) / 2 + window->window_x;
+        int y = window->window_y + window->window_h - 15;
+        eui_draw_text(c_it->canvas, x, y, &ESGUI_DEFAULT_FONT, "OK", EUI_MODE_SET);
+        ESGUI_WidgetTextFocusBox(c_it->canvas, x, y, data->font_height, data->text_len);
+    }
+    canvas_clip_pop(c_it->canvas);
+}
+
+/**
+ * @brief 消息弹窗滚动标题版本销毁回调
+ * @note  先停止标题滚动动画，再释放弹窗数据，防止动画写入已释放内存。
+ */
+void esgui_default_message_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    if (window->draw_data != NULL) {
+        ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *dat = window->draw_data;
+        anim_stop_all(&dat->title_scroll_x);
+        popup_data_free(window->draw_data);
+        window->draw_data = NULL;
+    }
+    window->render_ctx = NULL;
+}
+
+static const esgui_page_vtable_t message_scroll_title_popwindow_vtable = {
+    .on_create = esgui_default_message_scroll_title_popwindow_on_create,
+    .on_destroy = esgui_default_message_scroll_title_popwindow_on_destroy,
+    .on_draw = esgui_default_message_scroll_title_popwindow_on_draw,
+    .special_item_draw = NULL,
+    .get_special_item_draw_w = NULL,
+    .on_input = esgui_default_message_popwindow_on_input,
+    .on_focus_change = NULL,
+    .on_page_chenge = esgui_default_message_popwindow_on_page_change,
+};
+
+/**
+ * @brief 创建消息弹窗滚动标题版本
+ */
+void ESGUI_DefaultMessageScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
+    uint16_t window_w, uint16_t window_h, bool button_en) {
+    if (window == NULL) return;
+    memset(window, 0, sizeof(ESGUI_PopWindow_T));
+    window->vtbl = &message_scroll_title_popwindow_vtable;
+    window->title = (message == NULL) ? "" : message;
+    window->window_w = window_w;
+    window->window_h = window_h;
+    ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *dat = popup_data_alloc();
+    if (dat != NULL) {
+        dat->button_en = button_en;
+    }
+    window->draw_data = dat;
+}
+
+#endif /* ESGUI_ENABLE_POPUP_MESSAGE_SCROLL_TITLE */
+
+
 /* ---------- 6.2 布尔弹窗 ---------- */
 
 #if ESGUI_ENABLE_POPUP_BOOL
@@ -1770,6 +1953,8 @@ typedef struct esgui_default_bool_wondow_dat {
     uint16_t font_height;   /**< 字体高度 */
     uint16_t focus_x;       /**< 焦点框当前 X 坐标 */
     uint16_t focus_w;       /**< 焦点框当前宽度 */
+    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_BOOL_WONDOW_DAT;
 
 /**
@@ -2010,6 +2195,98 @@ void ESGUI_DefaultBoolPopWindowCreate(ESGUI_PopWindow_T *window,const char* mess
 #endif /* ESGUI_ENABLE_POPUP_BOOL */
 
 
+/* ---------- 6.2b 布尔弹窗滚动标题版本 ---------- */
+
+#if ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE
+
+/**
+ * @brief 布尔弹窗滚动标题版本创建回调
+ */
+void esgui_default_bool_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
+    esgui_default_bool_popwindow_on_create(page);
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
+    if (data == NULL || !window->title || !window->title[0]) return;
+    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
+}
+
+/**
+ * @brief 布尔弹窗滚动标题版本绘制回调
+ */
+void esgui_default_bool_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
+    if (data == NULL || window->item_num < 2) return;
+    window->items[0].y = window->window_y + window->window_h - 15;
+    Area a = {window->window_x, window->window_y, window->window_x + window->window_w, window->window_y + window->window_h};
+    canvas_clip_push(c_it->canvas, &a);
+    eui_draw_round_rect_box(c_it->canvas, window->window_x, window->window_y,
+        window->window_x + window->window_w, window->window_y + window->window_h, 5, EUI_MODE_SET);
+    draw_popup_scrolling_title(c_it, window, data->title_len, data->title_scroll_x);
+    eui_draw_text(c_it->canvas, window->items[0].x, window->items[0].y,
+        &ESGUI_DEFAULT_FONT, window->items[0].label, EUI_MODE_SET);
+    eui_draw_text(c_it->canvas, window->items[0].x + data->text1_len + ESGUI_BOOL_POPWINDOW_TEXT_GAP, window->items[0].y,
+        &ESGUI_DEFAULT_FONT, window->items[1].label, EUI_MODE_SET);
+    ESGUI_WidgetTextFocusBox(c_it->canvas, data->focus_x, window->items[0].y, data->font_height, data->focus_w);
+    canvas_clip_pop(c_it->canvas);
+}
+
+/**
+ * @brief 布尔弹窗滚动标题版本销毁回调
+ */
+void esgui_default_bool_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    if (window->draw_data != NULL) {
+        ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = window->draw_data;
+        anim_stop_all(&dat->title_scroll_x);
+        anim_stop_all(&dat->focus_w);
+        anim_stop_all(&dat->focus_x);
+        popup_data_free(window->draw_data);
+        window->draw_data = NULL;
+    }
+    window->render_ctx = NULL;
+}
+
+static const esgui_page_vtable_t bool_scroll_title_popwindow_vtable = {
+    .on_create = esgui_default_bool_scroll_title_popwindow_on_create,
+    .on_destroy = esgui_default_bool_scroll_title_popwindow_on_destroy,
+    .on_draw = esgui_default_bool_scroll_title_popwindow_on_draw,
+    .special_item_draw = NULL,
+    .get_special_item_draw_w = NULL,
+    .on_input = esgui_default_bool_popwindow_on_input,
+    .on_focus_change = esgui_default_bool_popwindow_on_focus_change,
+    .on_page_chenge = esgui_default_bool_popwindow_on_page_change,
+};
+
+/**
+ * @brief 创建布尔弹窗滚动标题版本
+ */
+void ESGUI_DefaultBoolScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
+    uint16_t window_w, uint16_t window_h, bool *boo_val) {
+    if (window == NULL) return;
+    memset(window, 0, sizeof(ESGUI_PopWindow_T));
+    window->vtbl = &bool_scroll_title_popwindow_vtable;
+    window->title = (message == NULL) ? "" : message;
+    window->window_w = window_w;
+    window->window_h = window_h;
+    window->item_num = ESGUI_ITEM_NUM_COUNT(bool_popwindow_items);
+    window->items = bool_popwindow_items;
+    ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = popup_data_alloc();
+    if (dat != NULL) {
+        dat->val = boo_val;
+    }
+    window->draw_data = dat;
+}
+
+#endif /* ESGUI_ENABLE_POPUP_BOOL_SCROLL_TITLE */
+
+
 /* ---------- 6.3 值弹窗 ---------- */
 
 #if ESGUI_ENABLE_POPUP_VALUE
@@ -2024,6 +2301,8 @@ typedef struct {
     uint16_t text_len;              /**< 值文本宽度 */
     uint16_t bar_per;               /**< 进度条千分比（0~1000） */
     char value_str[15];             /**< 值文本缓冲区 */
+    uint16_t title_len;             /**< 标题文本宽度（滚动标题用） */
+    int16_t  title_scroll_x;        /**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_VALUE_WINDOW_DAT;
 
 /**
@@ -2248,6 +2527,98 @@ void ESGUI_DefaultValuePopWindowCreate(ESGUI_PopWindow_T *window,const char* mes
 #endif /* ESGUI_ENABLE_POPUP_VALUE */
 
 
+/* ---------- 6.3b 值弹窗滚动标题版本 ---------- */
+
+#if ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE
+
+/**
+ * @brief 值弹窗滚动标题版本创建回调
+ */
+void esgui_default_value_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
+    esgui_default_value_popwindow_on_create(page);
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = window->draw_data;
+    if (data == NULL || !window->title || !window->title[0]) return;
+    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
+}
+
+/**
+ * @brief 值弹窗滚动标题版本绘制回调
+ */
+void esgui_default_value_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = page->draw_data;
+    Area a = {window->window_x, window->window_y, window->window_x + window->window_w, window->window_y + window->window_h};
+    canvas_clip_push(c_it->canvas, &a);
+    eui_draw_round_rect_box(c_it->canvas, window->window_x, window->window_y,
+        window->window_x + window->window_w, window->window_y + window->window_h, 5, EUI_MODE_SET);
+    draw_popup_scrolling_title(c_it, window, data->title_len, data->title_scroll_x);
+    if (data->value_desc) {
+        if (data->value_desc->to_string) {
+            eui_draw_text_clip(c_it->canvas, data->text_x, window->window_y + window->window_h / 2,
+                &ESGUI_DEFAULT_FONT, data->value_str, EUI_MODE_SET, data->text_len);
+        }
+        if (data->value_desc->get_permille) {
+            ESGUI_WidgetProgrssBarChangeLenPermille(c_it->canvas, window->window_x + 2,
+                window->window_y + window->window_h / 2 + data->font_height + 3,
+                3, window->window_w - 4, data->bar_per, ESGUI_WIDGET_PROGBAR_RIGHT);
+        }
+    }
+    canvas_clip_pop(c_it->canvas);
+}
+
+/**
+ * @brief 值弹窗滚动标题版本销毁回调
+ */
+void esgui_default_value_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    if (page->draw_data != NULL) {
+        ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = page->draw_data;
+        anim_stop_all(&dat->title_scroll_x);
+        anim_stop_all(&dat->bar_per);
+        popup_data_free(page->draw_data);
+        page->draw_data = NULL;
+    }
+    page->render_ctx = NULL;
+}
+
+static const esgui_page_vtable_t value_scroll_title_popwindow_vtable = {
+    .on_create = esgui_default_value_scroll_title_popwindow_on_create,
+    .on_destroy = esgui_default_value_scroll_title_popwindow_on_destroy,
+    .on_draw = esgui_default_value_scroll_title_popwindow_on_draw,
+    .special_item_draw = NULL,
+    .get_special_item_draw_w = NULL,
+    .on_input = esgui_default_value_popwindow_on_input,
+    .on_focus_change = esgui_default_value_popwindow_on_focus_change,
+    .on_page_chenge = esgui_default_value_popwindow_on_page_change,
+};
+
+/**
+ * @brief 创建值弹窗滚动标题版本
+ */
+void ESGUI_DefaultValueScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
+    uint16_t window_w, uint16_t window_h, ESGUI_ValueDesc_T *value_desc) {
+    if (window == NULL) return;
+    memset(window, 0, sizeof(ESGUI_PopWindow_T));
+    window->vtbl = &value_scroll_title_popwindow_vtable;
+    window->title = (message == NULL) ? "" : message;
+    window->window_w = window_w;
+    window->window_h = window_h;
+    ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = popup_data_alloc();
+    if (dat != NULL) {
+        dat->value_desc = value_desc;
+    }
+    window->draw_data = dat;
+}
+
+#endif /* ESGUI_ENABLE_POPUP_VALUE_SCROLL_TITLE */
+
+
 /* ---------- 6.4 文本列表弹窗 ---------- */
 
 #if ESGUI_ENABLE_POPUP_TEXTLIST
@@ -2265,6 +2636,8 @@ typedef struct {
     uint16_t item_stride;   /**< 条目步进 */
     uint8_t  font_height;   /**< 字体高度 */
     uint8_t  flags;         /**< 状态标志位 */
+    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT;
 
 #define TXTLIST_FLAG_ANIM  0x01  /**< 长文本滚动动画已启动 */
@@ -2441,7 +2814,7 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, u
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = page->draw_data;
     uint16_t focus_idx = page->focus_idx;
     uint16_t item_num  = page->item_num;
-    uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);  /* 使用纯文本宽度 */
+    uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
     data->text_len = text_len;
     int16_t max_text_w = window->window_w - 6;
     data->flags = (data->flags & ~TXTLIST_FLAG_LONG)
@@ -2453,6 +2826,7 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, u
     uint16_t first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
     uint16_t focus_in_view = focus_idx - first_visible;
     int16_t focus_y = calc_focus_y(top_y, focus_in_view, data->item_stride);
+
     if (item_num <= data->buff) {
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     } else if (focus_idx < data->stay) {
@@ -2463,8 +2837,13 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, u
         start_textlist_item_scroll_anim(window, list_y, 230);
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     } else {
+        /* 修复：底部区域直接修正 items[0].y，避免旧动画目标导致列表偏移 */
+        uint16_t first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
+        int16_t list_y = calc_list_y(top_y, first_visible, data->item_stride);
+        page->items[0].y = list_y;
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     }
+
     data->long_text_x = ESGUI_TEXT_MARGIN_X;
     data->flags &= ~TXTLIST_FLAG_ANIM;
     anim_stop_all(&data->long_text_x);
@@ -2607,6 +2986,177 @@ void ESGUI_DefaultTextListPopWindowCreate(ESGUI_PopWindow_T *window, uint16_t wi
 #endif /* ESGUI_ENABLE_POPUP_TEXTLIST */
 
 
+/* ---------- 6.4b 文本列表弹窗滚动标题版本 ---------- */
+
+#if ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE
+
+/**
+ * @brief 文本列表弹窗滚动标题版本创建回调
+ * @note  复用原版逻辑，但额外计算标题高度并调整可见区域。
+ */
+void esgui_default_text_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page)
+{
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T *)page;
+    ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = page->draw_data;
+    if (data == NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    page->items[0].y = 0;
+    data->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    data->item_stride = data->font_height + ESGUI_ITEM_SPACING;
+    uint16_t title_h = 0;
+    if (page->title && page->title[0]) {
+        title_h = data->font_height + 2 * ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+        data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, page->title);
+        data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+        start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
+    }
+    int16_t content_h = (int16_t)window->window_h - (int16_t)title_h;
+    if (content_h < 0) content_h = 0;
+    data->buff = (uint16_t)(content_h / data->item_stride);
+    if (data->buff == 0) data->buff = 1;
+    data->stay = (data->buff + 1) / 2;
+    window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
+    uint16_t text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    data->text_len = text_len;
+    int16_t max_text_w = window->window_w - 6;
+    data->flags = (text_len > (uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0;
+    int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+    if (focus_w > max_text_w) focus_w = max_text_w;
+    if (focus_w < 0) focus_w = 0;
+    data->focus_box_w = focus_w;
+    data->focus_box_y = 0;
+    data->long_text_x = ESGUI_TEXT_MARGIN_X;
+}
+
+/**
+ * @brief 文本列表弹窗滚动标题版本销毁回调
+ */
+void esgui_default_text_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    if (page->draw_data != NULL) {
+        ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = page->draw_data;
+        anim_stop_all(&dat->title_scroll_x);
+        anim_stop_all(&dat->long_text_x);
+        anim_stop_all(&dat->focus_box_w);
+        anim_stop_all(&dat->focus_box_y);
+        popup_data_free(page->draw_data);
+        page->draw_data = NULL;
+    }
+    page->render_ctx = NULL;
+}
+
+/**
+ * @brief 文本列表弹窗滚动标题版本绘制回调
+ * @note  在顶部增加标题滚动绘制，列表内容区域下移。
+ */
+void esgui_default_text_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page)
+{
+    if (page == NULL || page->draw_data == NULL) return;
+    CanvasStripIter *c_it = (CanvasStripIter *)page->render_ctx;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = (ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *)page->draw_data;
+    uint16_t start, end;
+    calc_visible_range(page->item_num, data->buff, data->stay, page->focus_idx, &start, &end);
+    Area clip = {
+        window->window_x, window->window_y,
+        window->window_x + window->window_w,
+        window->window_y + window->window_h,
+    };
+    canvas_clip_push(c_it->canvas, &clip);
+    eui_draw_round_rect_box(c_it->canvas,
+        window->window_x, window->window_y,
+        window->window_x + window->window_w,
+        window->window_y + window->window_h, 5, EUI_MODE_SET);
+
+    uint16_t title_h = 0;
+    if (page->title && page->title[0]) {
+        draw_popup_scrolling_title(c_it, window, data->title_len, data->title_scroll_x);
+        title_h = data->font_height + 2 * ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    }
+
+    int16_t list_base_y = window->window_y + 3 + title_h + page->items[0].y;
+    uint16_t stride = data->item_stride;
+    uint16_t focus_idx = page->focus_idx;
+    int16_t max_text_w = window->window_w - 6;
+    int32_t item_y_acc = (int32_t)list_base_y + (int32_t)start * (int32_t)stride;
+    for (uint16_t i = start; i <= end; i++, item_y_acc += stride) {
+        int16_t item_y = (int16_t)item_y_acc;
+        if (i == focus_idx && (data->flags & TXTLIST_FLAG_LONG)) {
+            uint16_t cached_text_len = data->text_len;
+            int16_t long_text_x = data->long_text_x;
+            int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
+            int16_t w1 = max_text_w + abs_x - ESGUI_TEXT_MARGIN_X;
+            if (w1 > (int16_t)cached_text_len) w1 = (int16_t)cached_text_len;
+            if (w1 < 0) w1 = 0;
+            eui_draw_text_clip(c_it->canvas,
+                window->window_x + long_text_x, item_y,
+                &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w1);
+            int32_t text_plus_x = (int32_t)cached_text_len + (int32_t)long_text_x;
+            int16_t text_area_right = window->window_w - 3;
+            int16_t remain = text_area_right - (int16_t)text_plus_x;
+            if (remain >= ESGUI_LONG_TEXT_GAP) {
+                int16_t X2 = long_text_x + (int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
+                int16_t w2 = text_area_right - X2;
+                if (w2 > (int16_t)cached_text_len) w2 = (int16_t)cached_text_len;
+                if (w2 < 0) w2 = 0;
+                eui_draw_text_clip(c_it->canvas,
+                    window->window_x + X2, item_y,
+                    &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w2);
+            }
+            if (!(data->flags & TXTLIST_FLAG_ANIM)) {
+                data->flags |= TXTLIST_FLAG_ANIM;
+                start_textlist_long_text_anim(window);
+            }
+        } else {
+            uint16_t pure_w = get_pure_text_width(page->items[i].label);
+            int16_t draw_w = (max_text_w < (int16_t)pure_w) ? max_text_w : (int16_t)pure_w;
+            if (draw_w < 0) draw_w = 0;
+            eui_draw_text_clip(c_it->canvas,
+                window->window_x + ESGUI_TEXT_MARGIN_X, item_y,
+                &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, (int)draw_w);
+        }
+    }
+    int16_t abs_focus_y = window->window_y + 3 + title_h + data->focus_box_y;
+    ESGUI_WidgetTextFocusBox(c_it->canvas,
+        window->window_x,
+        abs_focus_y,
+        data->font_height,
+        (uint8_t)data->focus_box_w);
+    canvas_clip_pop(c_it->canvas);
+}
+
+static const esgui_page_vtable_t text_list_scroll_title_popwindow_vtable = {
+    .on_create = esgui_default_text_list_scroll_title_popwindow_on_create,
+    .on_destroy = esgui_default_text_list_scroll_title_popwindow_on_destroy,
+    .on_draw = esgui_default_text_list_scroll_title_popwindow_on_draw,
+    .special_item_draw = NULL,
+    .get_special_item_draw_w = NULL,
+    .on_input = esgui_default_text_list_popwindow_on_input,
+    .on_focus_change = esgui_default_text_list_popwindow_on_focus_change,
+    .on_page_chenge = esgui_text_list_popwindow_default_on_page_change,
+};
+
+/**
+ * @brief 创建文本列表弹窗滚动标题版本
+ */
+void ESGUI_DefaultTextListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title, uint16_t window_w, uint16_t window_h,
+    ESGUI_MenuItem_T *items, size_t item_num) {
+    if (window == NULL || items == NULL || item_num == 0) return;
+    memset(window, 0, sizeof(ESGUI_PopWindow_T));
+    window->vtbl = &text_list_scroll_title_popwindow_vtable;
+    window->title = (title == NULL) ? "" : title;
+    window->window_w = window_w;
+    window->window_h = window_h;
+    window->items = items;
+    window->item_num = (uint16_t)item_num;
+    ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = popup_data_alloc();
+    window->draw_data = dat;
+}
+
+#endif /* ESGUI_ENABLE_POPUP_TEXTLIST_SCROLL_TITLE */
+
+
 /* ---------- 6.5 BMP 列表弹窗 ---------- */
 
 #if ESGUI_ENABLE_POPUP_BMPLIST
@@ -2625,6 +3175,8 @@ typedef struct {
     uint16_t box_target_w;      /**< 焦点框目标宽度 */
     uint16_t box_target_h;      /**< 焦点框目标高度 */
     uint16_t box_permille;      /**< 焦点框生长进度 */
+    uint16_t title_len;         /**< 标题文本宽度（滚动标题用） */
+    int16_t  title_scroll_x;    /**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT;
 
 /**
@@ -2965,6 +3517,141 @@ void ESGUI_DefaultBMPListPopWindowCreate(ESGUI_PopWindow_T *window, const char *
 }
 
 #endif /* ESGUI_ENABLE_POPUP_BMPLIST */
+
+
+/* ---------- 6.5b BMP 列表弹窗滚动标题版本 ---------- */
+
+#if ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
+
+/**
+ * @brief BMP 列表弹窗滚动标题版本创建回调
+ */
+void esgui_default_bmp_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
+    esgui_default_bmp_list_popwindow_on_create(page);
+    if (page == NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    if (dat == NULL || !window->title || !window->title[0]) return;
+    dat->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    dat->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    start_popup_title_scroll_anim(window, &dat->title_scroll_x, dat->title_len);
+}
+
+/**
+ * @brief BMP 列表弹窗滚动标题版本绘制回调
+ */
+void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
+    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    Area a = {
+        window->window_x, window->window_y,
+        window->window_x + window->window_w,
+        window->window_y + window->window_h
+    };
+    canvas_clip_push(c_it->canvas, &a);
+    eui_draw_round_rect_box(c_it->canvas,
+        window->window_x, window->window_y,
+        window->window_x + window->window_w,
+        window->window_y + window->window_h, 5, EUI_MODE_SET);
+    draw_popup_scrolling_title(c_it, window, dat->title_len, dat->title_scroll_x);
+    uint16_t title_h = (page->title && page->title[0]) ? (dat->font_height + 4) : 0;
+    Area bmp_clip = {
+        window->window_x + dat->content_padding,
+        window->window_y + title_h + 2,
+        window->window_x + window->window_w - dat->content_padding,
+        window->window_y + dat->label_y - 2
+    };
+    canvas_clip_push(c_it->canvas, &bmp_clip);
+    int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
+    for (uint16_t i = 0; i < page->item_num; i++) {
+        Bitmap *bmp = page->items[i].icon;
+        if (!bmp) continue;
+        int16_t rel_x = bmp_item_rel_x(page, i);
+        int16_t x = base_x + rel_x;
+        int16_t y = window->window_y + page->items[i].y;
+        int16_t w = bmp->w;
+        int16_t h = bmp->h;
+        int16_t clip_left = (int16_t)(window->window_x + dat->content_padding);
+        int16_t clip_right = (int16_t)(window->window_x + window->window_w - dat->content_padding);
+        if (x + w < clip_left || x > clip_right) continue;
+        eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+        if (i == page->focus_idx) {
+            int32_t d_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
+            int32_t d_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
+            uint16_t cur_w = (uint16_t)((int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
+            uint16_t cur_h = (uint16_t)((int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
+            int16_t content_w = window->window_w - 2 * dat->content_padding;
+            int fx = window->window_x + dat->content_padding + (content_w - (int16_t)cur_w) / 2;
+            int center_y = (int)y + (bmp->h) / 2;
+            int fy = center_y - (int)cur_h / 2;
+            ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
+        }
+    }
+    canvas_clip_pop(c_it->canvas);
+    if (page->items[page->focus_idx].label) {
+        const char *label = page->items[page->focus_idx].label;
+        int text_w = eui_get_text_width(&ESGUI_DEFAULT_FONT, label);
+        int max_w = window->window_w - 10;
+        int text_x = (int)window->window_x + ((int)window->window_w - text_w) / 2;
+        if (text_x < (int)(window->window_x + 5)) text_x = (int)(window->window_x + 5);
+        eui_draw_text_clip(c_it->canvas, text_x,
+            window->window_y + dat->label_anim_y,
+            &ESGUI_DEFAULT_FONT, label, EUI_MODE_SET, max_w);
+    }
+    canvas_clip_pop(c_it->canvas);
+}
+
+/**
+ * @brief BMP 列表弹窗滚动标题版本销毁回调
+ */
+void esgui_default_bmp_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == NULL) return;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    if (dat != NULL) {
+        anim_stop_all(&dat->title_scroll_x);
+        anim_stop_all(&page->items[0].x);
+        anim_stop_all(&dat->box_permille);
+        anim_stop_all(&dat->label_anim_y);
+        popup_data_free(page->draw_data);
+        page->draw_data = NULL;
+    }
+    page->render_ctx = NULL;
+}
+
+static const esgui_page_vtable_t bmp_list_scroll_title_popwindow_vtable = {
+    .on_create                = esgui_default_bmp_list_scroll_title_popwindow_on_create,
+    .on_destroy               = esgui_default_bmp_list_scroll_title_popwindow_on_destroy,
+    .on_draw                  = esgui_default_bmp_list_scroll_title_popwindow_on_draw,
+    .special_item_draw        = NULL,
+    .get_special_item_draw_w  = NULL,
+    .on_input                 = esgui_default_bmp_list_popwindow_on_input,
+    .on_focus_change          = esgui_default_bmp_list_popwindow_on_focus_change,
+    .on_page_chenge           = esgui_default_bmp_list_popwindow_on_page_change,
+};
+
+/**
+ * @brief 创建 BMP 列表弹窗滚动标题版本
+ */
+void ESGUI_DefaultBMPListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title,
+    uint16_t window_w, uint16_t window_h,
+    ESGUI_MenuItem_T *items, size_t item_num) {
+    if (window == NULL || items == NULL || item_num == 0) return;
+    memset(window, 0, sizeof(ESGUI_PopWindow_T));
+    window->vtbl     = &bmp_list_scroll_title_popwindow_vtable;
+    window->title    = (title == NULL) ? "" : title;
+    window->window_w = window_w;
+    window->window_h = window_h;
+    window->items    = items;
+    window->item_num = (uint16_t)item_num;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = popup_data_alloc();
+    window->draw_data = dat;
+}
+
+#endif /* ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE */
+
+
 
 
 /* ============================================================

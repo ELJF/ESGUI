@@ -1,5 +1,6 @@
 //
 // Created by E_LJF on 2025/8/15.
+// 支持 SSD1306 / SH1107 双驱动，通过 oled.h 中的宏定义切换
 //
 
 #include "oled.h"
@@ -51,7 +52,7 @@ static void delay_us(uint32_t us)
 
 #if OLED_SPI_DMA_EN == 1
 
-//OLED写命令函数
+//OLED写命令函数 (DMA模式, 用于运行时单条命令)
 // oled_obj OLED对象结构体
 // c        要写入的命令
 void OLED_WriteCommand(OLED_OBJ_T *oled_obj,uint8_t c) {
@@ -67,7 +68,7 @@ void OLED_WriteCommand(OLED_OBJ_T *oled_obj,uint8_t c) {
 }
 
 
-//OLED写数据函数
+//OLED写数据函数 (DMA模式, 用于运行时单条数据)
 // oled_obj OLED对象结构体
 // c        要写入的数据
 void OLED_WriteData(OLED_OBJ_T *oled_obj,uint8_t c) {
@@ -84,7 +85,7 @@ void OLED_WriteData(OLED_OBJ_T *oled_obj,uint8_t c) {
 
 #else
 
-//OLED写命令函数
+//OLED写命令函数 (阻塞模式)
 // oled_obj OLED对象结构体
 // c        要写入的命令
 void OLED_WriteCommand(OLED_OBJ_T *oled_obj,uint8_t c) {
@@ -95,7 +96,7 @@ void OLED_WriteCommand(OLED_OBJ_T *oled_obj,uint8_t c) {
 }
 
 
-//OLED写数据函数
+//OLED写数据函数 (阻塞模式)
 // oled_obj OLED对象结构体
 // c        要写入的数据
 void OLED_WriteData(OLED_OBJ_T *oled_obj,uint8_t c) {
@@ -105,62 +106,6 @@ void OLED_WriteData(OLED_OBJ_T *oled_obj,uint8_t c) {
     HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_SET);
 }
 #endif
-
-
-//OLED初始化需要的命令
-const uint8_t oled_init_hex[] =
-{
-    /* 1. 关闭显示 */
-    0xAE,
-
-    /* 2. 设置时钟分频比/振荡器频率 */
-    0xD5, 0x80,         /* 分频比=1, 振荡器频率=默认 */
-
-    /* 3. 设置多路复用率 */
-    0xA8, 0x3F,         /* 1/64 duty */
-
-    /* 4. 设置显示偏移 */
-    0xD3, 0x00,         /* 无偏移 */
-
-    /* 5. 设置显示起始行 */
-    0x40,               /* 起始行 = 0 */
-
-    /* 6. 开启电荷泵 (SSD1306 必须) */
-    0x8D, 0x14,         /* 0x14=启用电荷泵, 0x10=禁用 */
-
-    /* 7. 设置内存地址模式 */
-    0x20, 0x00,         /* 0x00=水平寻址, 0x01=垂直寻址, 0x02=页寻址 */
-
-    /* 8. 设置段重映射 */
-    0xA1,               /* 0xA0=正常, 0xA1=重映射 (配合翻转) */
-
-    /* 9. 设置 COM 扫描方向 */
-    0xC8,               /* 0xC0=正常, 0xC8=反向扫描 */
-
-    /* 10. 设置 COM 引脚硬件配置 */
-    0xDA, 0x12,         /* 0x12=顺序COM, 禁用左右重映射 */
-
-    /* 11. 设置对比度 */
-    0x81, 0xCF,         /* 对比度 = 207 (范围 0-255) */
-
-    /* 12. 设置预充电周期 */
-    0xD9, 0xF1,         /* 相位1=15, 相位2=1 */
-
-    /* 13. 设置 VCOMH 取消选择电平 */
-    0xDB, 0x40,         /* ~0.77x Vcc */
-
-    /* 14. 禁用滚动 */
-    0x2E,
-
-    /* 15. 输出跟随 RAM */
-    0xA4,               /* 0xA4=跟随RAM, 0xA5=全亮 */
-
-    /* 16. 设置正常/反向显示 */
-    0xA6,               /* 0xA6=正常, 0xA7=反向 */
-
-    /* 17. 开启显示 (可选: 初始化后单独发送) */
-    0xAF
-};
 
 
 //OLED对象初始化
@@ -214,9 +159,180 @@ void OLED_Init(OLED_OBJ_T *oled_obj,
     HAL_Delay(100);
     HAL_GPIO_WritePin(oled_obj->rest_port,oled_obj->rest_pin,GPIO_PIN_SET);
 
-    HAL_SPI_Transmit(oled_obj->hspi,oled_init_hex,sizeof(oled_init_hex),100);
+    /* ===== 初始化命令序列 (逐条发送，阻塞模式确保时序正确) ===== */
+    /* 初始化阶段使用阻塞式 SPI 发送，无论 OLED_SPI_DMA_EN 是否启用 */
 
-    HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_SET);
+    #define OLED_INIT_CMD(c) do { \
+        HAL_GPIO_WritePin(oled_obj->cs_port, oled_obj->cs_pin, GPIO_PIN_RESET); \
+        HAL_GPIO_WritePin(oled_obj->dc_port, oled_obj->dc_pin, GPIO_PIN_RESET); \
+        HAL_SPI_Transmit(oled_obj->hspi, (uint8_t[]){c}, 1, 10); \
+        HAL_GPIO_WritePin(oled_obj->cs_port, oled_obj->cs_pin, GPIO_PIN_SET); \
+    } while(0)
+
+#ifdef OLED_SSD1306
+    /* ============================================================
+     * SSD1306 初始化序列
+     * ============================================================ */
+
+    // 1. 关闭显示
+    OLED_INIT_CMD(0xAE);
+
+    // 2. 设置时钟分频比/振荡器频率: 分频比=1, 振荡器频率=默认
+    OLED_INIT_CMD(0xD5);
+    OLED_INIT_CMD(0x80);
+
+    // 3. 设置多路复用率(MUX Ratio): 参数 = 屏幕高度 - 1 (自适应)
+    OLED_INIT_CMD(0xA8);
+    OLED_INIT_CMD((uint8_t)(oled_size_high - 1));
+
+    // 4. 设置显示偏移(Display Offset): 无偏移
+    OLED_INIT_CMD(0xD3);
+    OLED_INIT_CMD(0x00);
+
+    // 5. 设置显示起始行(Display Start Line): 起始行 = 0
+    OLED_INIT_CMD(0x40);
+
+    // 6. 开启电荷泵 (SSD1306 必须): 0x14=启用内部升压
+    OLED_INIT_CMD(0x8D);
+    OLED_INIT_CMD(0x14);
+
+    // 7. 设置内存地址模式: 0x00=水平寻址
+    OLED_INIT_CMD(0x20);
+    OLED_INIT_CMD(0x00);
+
+    // 8. 设置段重映射(Segment Re-map): 0xA1=重映射 (左右翻转)
+    OLED_INIT_CMD(0xA1);
+
+    // 9. 设置 COM 扫描方向: 0xC8=反向扫描 (从下到上)
+    OLED_INIT_CMD(0xC8);
+
+    // 10. 设置 COM 引脚硬件配置 (根据屏幕高度自适应)
+    //     0x02: 顺序COM引脚配置, 禁用左右重映射 (适用于32行及以下)
+    //     0x12: 交替COM引脚配置, 禁用左右重映射 (适用于64行)
+    OLED_INIT_CMD(0xDA);
+    if (oled_size_high <= 32) {
+        OLED_INIT_CMD(0x02);  // Sequential COM, 适用于32行及以下
+    } else {
+        OLED_INIT_CMD(0x12);  // Alternative COM, 适用于64行
+    }
+
+    // 11. 设置对比度(Contrast Control): 207 (范围 0-255)
+    OLED_INIT_CMD(0x81);
+    OLED_INIT_CMD(0xCF);
+
+    // 12. 设置预充电周期(Pre-charge Period): 相位1=15, 相位2=1
+    OLED_INIT_CMD(0xD9);
+    OLED_INIT_CMD(0xF1);
+
+    // 13. 设置 VCOMH 取消选择电平: ~0.77x Vcc
+    OLED_INIT_CMD(0xDB);
+    OLED_INIT_CMD(0x40);
+
+    // 14. 禁用滚动
+    OLED_INIT_CMD(0x2E);
+
+    // 15. 输出跟随 RAM (Entire Display ON): 0xA4=跟随RAM内容
+    OLED_INIT_CMD(0xA4);
+
+    // 16. 设置正常/反向显示: 0xA6=正常显示 (非反色)
+    OLED_INIT_CMD(0xA6);
+
+    // 17. 开启显示
+    OLED_INIT_CMD(0xAF);
+
+#elif defined(OLED_SH1107)
+    /* ============================================================
+     * SH1107 初始化序列
+     * 适用于 128x128 或 64x128 等分辨率
+     * ============================================================ */
+
+    // 1. 关闭显示
+    OLED_INIT_CMD(0xAE);
+
+    // 2. 设置显示起始线 (SH1107 使用 0xDC, SSD1306 使用 0x40)
+    OLED_INIT_CMD(0xDC);
+    OLED_INIT_CMD(0x00);
+
+    // 3. 设置对比度 (提高对比度，0x7F=127 比 0x2F=47 更亮)
+    OLED_INIT_CMD(0x81);
+    OLED_INIT_CMD(0x7F);
+
+    // 4. 设置内存地址模式 (SH1107 通常使用页寻址模式 0x02)
+    OLED_INIT_CMD(0x20);
+    OLED_INIT_CMD(0x02);  // Page Addressing Mode
+
+    // 5. 设置段重映射: 0xA0=正常, 0xA1=重映射
+    //    根据屏幕硬件接线选择，如果显示左右镜像则改为 0xA1
+    OLED_INIT_CMD(0xA0);
+
+    // 6. 设置 COM 输出扫描方向: 0xC0=正常, 0xC8=反向
+    //    根据屏幕硬件接线选择，如果显示上下颠倒则改为 0xC8
+    OLED_INIT_CMD(0xC0);
+
+    // 7. 设置多路复用率(MUX Ratio): 参数 = 屏幕高度 - 1
+    //    SH1107 支持 1~128 MUX (0x00~0x7F)
+    OLED_INIT_CMD(0xA8);
+    OLED_INIT_CMD((uint8_t)(oled_size_high - 1));
+
+    // 8. 设置显示偏移 (根据屏幕高度自适应)
+    //    SH1107 不同屏幕有不同的偏移需求：
+    //    - 128x64 屏幕 (如 Adafruit FeatherWing): 通常需要 0x60 偏移
+    //    - 128x128 屏幕 (如 Pimoroni): 通常偏移为 0x00
+    //    用户可通过修改 OLED_SH1107_OFFSET 宏来适配自己的屏幕
+    OLED_INIT_CMD(0xD3);
+    OLED_INIT_CMD((uint8_t)OLED_SH1107_OFFSET);
+
+    // 9. 设置时钟分频比/振荡器频率 (提高频率减少闪烁)
+    //    0xF0 = 1111 0000: 最高振荡器频率, 分频比=1
+    OLED_INIT_CMD(0xD5);
+    OLED_INIT_CMD(0xF0);
+
+    // 10. 设置预充电周期
+    OLED_INIT_CMD(0xD9);
+    OLED_INIT_CMD(0x22);
+
+    // 11. 设置 VCOMH 取消选择电平
+    OLED_INIT_CMD(0xDB);
+    OLED_INIT_CMD(0x35);
+
+    // 12. 设置页地址 (SH1107 需要设置初始页地址)
+    OLED_INIT_CMD(0xB0);
+
+    // 13. 设置 COM 引脚硬件配置 (根据屏幕高度自适应)
+    //     0x02: 顺序COM引脚配置 (适用于32行及以下)
+    //     0x12: 交替COM引脚配置 (适用于64行及以上)
+    OLED_INIT_CMD(0xDA);
+    if (oled_size_high <= 32) {
+        OLED_INIT_CMD(0x02);  // Sequential COM, 适用于32行及以下
+    } else {
+        OLED_INIT_CMD(0x12);  // Alternative COM, 适用于64行及以上
+    }
+
+    // 14. 设置 IREF 模式 (SH1107 特有, 0xAD 命令)
+    //     0x30 = 0011 0000: 内部 IREF (参考 Zephyr RTOS 驱动)
+    OLED_INIT_CMD(0xAD);
+    OLED_INIT_CMD(0x30);
+
+    // 15. 设置电荷泵 (SH1107 使用 0x8D 或 0xAD 设置 DCDC)
+    OLED_INIT_CMD(0x8D);
+    OLED_INIT_CMD(0x14);  // 启用电荷泵
+
+    // 16. 设置初始列地址 (SH1107 需要设置列地址)
+    OLED_INIT_CMD(0x00);  // 列地址低4位
+    OLED_INIT_CMD(0x10);  // 列地址高4位
+
+    // 17. 输出跟随 RAM
+    OLED_INIT_CMD(0xA4);
+
+    // 18. 设置正常/反向显示
+    OLED_INIT_CMD(0xA6);
+
+    // 19. 开启显示
+    OLED_INIT_CMD(0xAF);
+
+#endif  /* OLED_SSD1306 / OLED_SH1107 */
+
+    #undef OLED_INIT_CMD
 
 #if OLED_SPI_DMA_EN == 1
     __HAL_DMA_DISABLE_IT(oled_obj->hspi->hdmatx,DMA_IT_HT);
@@ -271,19 +387,68 @@ void OLED_ObjDelete(OLED_OBJ_T *oled_obj) {
 // oled_obj OLED对象结构体
 void OLED_Refresh(OLED_OBJ_T *oled_obj) {
     if (oled_obj == NULL) {return;}
-    HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_RESET);
 
+#ifdef OLED_SSD1306
+    /* ============================================================
+     * SSD1306 刷新方式: 水平寻址模式，一次性发送整个显存
+     * 支持 DMA 模式，大数据量传输效率高
+     * ============================================================ */
+    HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_RESET);
     HAL_GPIO_WritePin(oled_obj->dc_port,oled_obj->dc_pin,GPIO_PIN_SET);
 
-#if OLED_SPI_DMA_EN == 1
-    delay_us(7);
-    if (spi_dma_ok_flag) {
-        spi_dma_ok_flag = 0;
-        HAL_SPI_Transmit_DMA(oled_obj->hspi,oled_obj->oled_gram,oled_obj->oled_gram_size);
+    #if OLED_SPI_DMA_EN == 1
+        delay_us(7);
+        if (spi_dma_ok_flag) {
+            spi_dma_ok_flag = 0;
+            HAL_SPI_Transmit_DMA(oled_obj->hspi,oled_obj->oled_gram,oled_obj->oled_gram_size);
+        }
+    #else
+        HAL_SPI_Transmit(oled_obj->hspi,oled_obj->oled_gram,(oled_obj->oled_gram_size),15);
+        HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_SET);
+    #endif
+
+#elif defined(OLED_SH1107)
+    /* ============================================================
+     * SH1107 刷新方式: 页寻址模式，逐页发送
+     *
+     * 关键修复：
+     * 1. SH1107 每页数据量小 (通常128字节)，DMA 不划算
+     * 2. 命令和数据必须在同一个 CS 低电平期间发送，避免 CS 频繁切换
+     * 3. 不使用 OLED_WriteCommand()，因为它会独立控制 CS
+     *
+     * 每页流程：
+     *   CS 拉低 -> DC 命令模式 -> 发送页地址命令 (3字节)
+     *   -> DC 数据模式 -> 发送该页数据 (width字节) -> CS 拉高
+     * ============================================================ */
+
+    uint8_t page_num = (oled_obj->oled_size_high + 7) / 8;
+    uint8_t col_offset = 0;  // SH1107 列偏移，某些屏幕需要 +2
+
+    for (uint8_t page = 0; page < page_num; page++) {
+        uint16_t page_offset = page * oled_obj->oled_size_width;
+
+        // 一次 CS 低电平期间完成：命令 + 数据
+        HAL_GPIO_WritePin(oled_obj->cs_port, oled_obj->cs_pin, GPIO_PIN_RESET);
+
+        // 1. 发送命令：设置页地址 + 列地址低 + 列地址高 (3字节打包)
+        // 减少 HAL_SPI_Transmit 调用次数，降低 HAL 层开销
+        HAL_GPIO_WritePin(oled_obj->dc_port, oled_obj->dc_pin, GPIO_PIN_RESET);
+        uint8_t cmd_buf[3] = {
+            0xB0 | page,                                    // 页地址
+            0x00 | ((col_offset + 0) & 0x0F),              // 列地址低4位
+            0x10 | (((col_offset + 0) >> 4) & 0x0F)         // 列地址高4位
+        };
+        HAL_SPI_Transmit(oled_obj->hspi, cmd_buf, 3, 10);
+
+        // 2. 切换为数据模式，发送该页数据
+        HAL_GPIO_WritePin(oled_obj->dc_port, oled_obj->dc_pin, GPIO_PIN_SET);
+        HAL_SPI_Transmit(oled_obj->hspi,
+                         &oled_obj->oled_gram[page_offset],
+                         oled_obj->oled_size_width, 15);
+
+        // 3. CS 拉高，结束本页传输
+        HAL_GPIO_WritePin(oled_obj->cs_port, oled_obj->cs_pin, GPIO_PIN_SET);
     }
-#else
-    HAL_SPI_Transmit(oled_obj->hspi,oled_obj->oled_gram,(oled_obj->oled_gram_size),15);
-    HAL_GPIO_WritePin(oled_obj->cs_port,oled_obj->cs_pin,GPIO_PIN_SET);
 #endif
 }
 
@@ -416,7 +581,6 @@ void OLED_HorizontalShift(OLED_OBJ_T *oled_obj,uint8_t start_page,uint8_t end_pa
 
         OLED_WriteCommand(oled_obj,0x2f);//开启滚动-0x2f，禁用滚动-0x2e，禁用需要重写数据
 }
-
 
 
 
@@ -903,8 +1067,6 @@ void OLED_ShowPicture(OLED_OBJ_T *oled_obj,uint16_t x,uint16_t y,uint16_t sizex,
         }
     }
 }
-
-
 
 
 
