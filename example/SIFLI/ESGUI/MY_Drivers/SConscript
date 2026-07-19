@@ -1,0 +1,41 @@
+import os
+from building import *
+
+cwd = GetCurrentDir()
+
+# ================== 1. 收集 .c 文件（用 File 节点，VariantDir 才能生效）==================
+sources = []
+for root, dirs, files in os.walk(cwd):
+    dirs[:] = [d for d in dirs if d not in ['build', '.git', '__pycache__', 'third_party', 'output']]
+    
+    for f in files:
+        if f.endswith('.c'):
+            full = os.path.join(root, f)
+            # 先算出相对于当前 SConscript 的路径
+            rel = os.path.relpath(full, cwd).replace('\\', '/')
+            # 关键：包成 File 节点，SCons 会记住完整路径，顶层编译也能找到
+            sources.append(File(rel))
+
+# ================== 2. 收集头文件目录（用绝对路径，确保 -I 正确）==================
+inc_dirs = []
+for root, dirs, files in os.walk(cwd):
+    dirs[:] = [d for d in dirs if d not in ['build', '.git', '__pycache__', 'third_party', 'output']]
+    if any(f.endswith('.h') for f in files):
+        # 绝对路径 + 正斜杠，直接传给编译器
+        inc_dirs.append(root.replace('\\', '/'))
+
+# 去重
+seen = set()
+inc_dirs = [d for d in inc_dirs if not (d in seen or seen.add(d))]
+
+# 调试：确认 SCGUI 路径在列表里
+# print("Sources:", [str(s) for s in sources])
+# print("INC:", inc_dirs)
+
+# ================== 3. 构建 ==================
+env = GetCurrentEnv()
+env.Append(CPPPATH=inc_dirs)
+
+group = DefineGroup('MY_Task', sources, depend=[], CPPPATH=inc_dirs)
+
+Return('group')

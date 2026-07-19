@@ -1,0 +1,13 @@
+# BEGIN SiFli CodeKit clangd config
+CompileFlags:
+  CompilationDatabase: 'project/build_sf32lb52-nano_n16r16_hcpu'
+
+Index:
+  Background: Build
+
+Completion:
+  HeaderInsertion: Never
+
+Diagnostics:
+  ClangTidy: false
+# END SiFli CodeKit clangd config

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CLionExternalBuildManager">
+    <target id="97c7f096-8eb5-4f9f-92fd-ab4df4e71d14" name="SiFli nano-n16-r16 Build" defaultType="TOOL">
+      <configuration id="da809f80-cefd-4446-a2a9-dd58a18bd910" name="SiFli nano-n16-r16 Build" toolchainName="SIFLI">
+        <build type="TOOL">
+          <tool actionId="Tool_外部工具_SCons Build" />
+        </build>
+        <clean type="TOOL">
+          <tool actionId="Tool_外部工具_SCons Clean" />
+        </clean>
+      </configuration>
+    </target>
+  </component>
+</project>

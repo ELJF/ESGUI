@@ -1,0 +1,13 @@
+{
+  "com_port": "COM8",
+  "chip": "SF32LB52",
+  "sftool_path": "C:\\Users\\E_LJF\\.sifli\tools\\sftool\\0.1.16\\sftool.exe",
+  "build_dir": "build_sf32lb52-nano_n16r16_hcpu",
+  "flash_files": [
+    "bootloader.bin@0x12010000",
+    "ftab.bin@0x12000000",
+    "ER_IROM2.bin@0x12A28000",
+    "ER_IROM3.bin@0x12268000",
+    "ER_IROM1.bin@0x12020000"
+  ]
+}

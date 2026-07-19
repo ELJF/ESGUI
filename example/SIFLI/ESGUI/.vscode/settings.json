@@ -1,0 +1,25 @@
+{
+    "clangd.arguments": [
+        "--enable-config",
+        "--background-index",
+        "--pch-storage=disk",
+        "--compile-commands-dir=${workspaceFolder}/project/build_sf32lb52-nano_n16r16_hcpu"
+    ],
+    "sifli-sdk-codekit.workflows": [
+        {
+            "id": "wswf_20260718_221714",
+            "name": "下载",
+            "failurePolicy": "stop",
+            "steps": [
+                {
+                    "type": "build.compile",
+                    "wait": true
+                },
+                {
+                    "type": "build.download",
+                    "wait": true
+                }
+            ]
+        }
+    ]
+}

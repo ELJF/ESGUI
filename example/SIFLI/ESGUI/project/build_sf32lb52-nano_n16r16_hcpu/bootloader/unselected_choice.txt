@@ -1,0 +1,3 @@
+The choice symbol BSP_MPI1_MODE_6 (defined at D:\SiFli\SiFli-SDK\v2.4.6//customer/boards/Kconfig_drv:727) was selected (set =y),
+but no symbol ended
+up as the choice selection. Check these unsatisfied dependencies: BSP_ENABLE_MPI1 (=n), BSP_USING_MPI (=n). 

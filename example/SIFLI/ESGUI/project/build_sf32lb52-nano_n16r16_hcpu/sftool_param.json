@@ -1,0 +1,21 @@
+{
+  "chip": "SF32LB52",
+  "memory": "NOR",
+  "write_flash": {
+    "verify": true,
+    "files": [
+      {
+        "path": "bootloader\\bootloader.bin",
+        "address": "0x12010000"
+      },
+      {
+        "path": "main.bin",
+        "address": "0x12020000"
+      },
+      {
+        "path": "ftab\\ftab.bin",
+        "address": "0x12000000"
+      }
+    ]
+  }
+}

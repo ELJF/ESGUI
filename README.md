@@ -11,6 +11,14 @@
 - 修复了无动画运行还一直刷屏的BUG
 - STM32的示例工程新增对SH1107 OLED驱动芯片的支持
 
+### V1.2.2 (2026-7-20)
+- 示例工程新增思澈芯片例程
+- 例程使用思澈官方SF32lb52-nano-n16-r16开发板
+- 该例程可作为在RT-Thread中使用ESGUI的参考
+
+
+
+# ↓↓ESGUI介绍↓↓
 ESGUI（Embedded Simple GUI）是一个面向单色 OLED（如 SSD1315/SSD1306）的轻量级菜单框架。
 采用 **纯 C 编写**、**零浮点运算**、**零动态内存分配**，专为资源受限的 MCU 设计。
 >介绍视频:https://www.bilibili.com/video/BV1xFTw6iEbj?vd_source=605419deeeaedb82f5f8918bda063219
