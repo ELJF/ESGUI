@@ -32,7 +32,7 @@ __WEAK void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const uint8_t* buff
  * 弹出裁剪区，最后通过 ESGUI_UseCanvasFlush 送屏。实现分块刷新以降低内存占用。
  */
 void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
-    if (ui == NULL || page == NULL)return;
+    if (ui == ESGUI_NULL || page == ESGUI_NULL)return;
 
     CanvasStripIter *canvas_it = (CanvasStripIter*)ui->draw_data;
 
@@ -50,7 +50,7 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
         ESGUI_MenuPage_T *menu_page = (ESGUI_MenuPage_T*)page;
         menu_page->vtbl->on_draw(menu_page);
 
-        if (window != NULL) {
+        if (window != ESGUI_NULL) {
             ((ESGUI_PopWindow_T*)window)->vtbl->on_draw(window);
         }
 
@@ -58,7 +58,7 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
         canvas_clip_pop(canvas_it->canvas);
 
         /* 5. 送屏当前条带 */
-        canvas_strip_iter_flush(canvas_it, ESGUI_UseCanvasFlush, NULL);
+        canvas_strip_iter_flush(canvas_it, ESGUI_UseCanvasFlush, ESGUI_NULL);
     }
 }
 

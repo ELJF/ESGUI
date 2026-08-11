@@ -5,7 +5,7 @@
 #ifndef ESGUI_ESGUI_ANIM_H
 #define ESGUI_ESGUI_ANIM_H
 
-#include "main.h"
+#include "ESGUI_Def.h"
 #include "stdbool.h"
 
 #ifndef ANIM_MAX_COUNT
@@ -114,8 +114,8 @@ typedef struct anim_t {
 
     /* ---- 用户关联 ---- */
     void*           var;        /**< 用户数据指针：关联的目标对象，原样透传给 exec_cb 和 ready_cb */
-    anim_exec_cb_t  exec_cb;    /**< 逐帧回调：每帧计算出新值后调用，用于将值写入对象属性。不可为 NULL */
-    anim_ready_cb_t ready_cb;   /**< 结束回调：动画完全结束后调用一次，可为 NULL。用于串联动画或触发音效 */
+    anim_exec_cb_t  exec_cb;    /**< 逐帧回调：每帧计算出新值后调用，用于将值写入对象属性。不可为 ESGUI_NULL */
+    anim_ready_cb_t ready_cb;   /**< 结束回调：动画完全结束后调用一次，可为 ESGUI_NULL。用于串联动画或触发音效 */
 
     /* ---- 数值定义 ---- */
     int32_t         start;      /**< 起始值：动画开始时 exec_cb 收到的第一个值。可大于 end，表示递减 */
@@ -134,7 +134,7 @@ typedef struct anim_t {
 
     /* ---- 缓动曲线 ---- */
     anim_path_type_t path_type; /**< 缓动类型：选择内置曲线或 ANIM_PATH_CUSTOM */
-    anim_path_cb_t   path_custom; /**< 自定义曲线函数指针：当 path_type = CUSTOM 时生效，否则可为 NULL */
+    anim_path_cb_t   path_custom; /**< 自定义曲线函数指针：当 path_type = CUSTOM 时生效，否则可为 ESGUI_NULL */
 
     /* ---- 是否必须完成 ---- */
     bool must_complete;         // 新增：true = 该动画必须完成，才允许页面销毁
@@ -155,8 +155,8 @@ void anim_init(void);
 
 /**
  * @brief 启动一个动画
- * @param a 用户填写的动画配置。必须是已填充的 anim_t 结构体，exec_cb 不能为 NULL
- * @return  动画池中的真实实例指针；NULL 表示池满，启动失败
+ * @param a 用户填写的动画配置。必须是已填充的 anim_t 结构体，exec_cb 不能为 ESGUI_NULL
+ * @return  动画池中的真实实例指针；ESGUI_NULL 表示池满，启动失败
  *
  * 说明：
  * - 函数内部会把 *a 整份拷贝到静态数组的空闲槽位，你的临时变量 a 随后可销毁
@@ -167,7 +167,7 @@ anim_t* anim_start(anim_t* a);
 
 /**
  * @brief 停止并释放指定动画
- * @param a anim_start() 返回的指针。传 NULL 安全无操作
+ * @param a anim_start() 返回的指针。传 ESGUI_NULL 安全无操作
  * @return 无
  *
  * 说明：动画立即停止，exec_cb 不再被调用，节点归还空闲链表。
@@ -181,7 +181,7 @@ void anim_stop(anim_t* a);
  * @return 无
  *
  * 说明：遍历活跃链表，var 匹配的全部停止。用于页面切换时批量清理。
- * 传 NULL 会匹配所有 var 为 NULL 的动画。
+ * 传 ESGUI_NULL 会匹配所有 var 为 ESGUI_NULL 的动画。
  */
 void anim_stop_all(void* var);
 
@@ -264,7 +264,7 @@ anim_t* anim_set_var(anim_t* a, void* var);
 /**
  * @brief 设置每帧属性写入回调
  * @param a  目标动画配置
- * @param cb 回调函数指针，不能为 NULL，否则 anim_start 会失败
+ * @param cb 回调函数指针，不能为 ESGUI_NULL，否则 anim_start 会失败
  * @return   返回 a 自身，支持链式调用
  */
 anim_t* anim_set_exec_cb(anim_t* a, anim_exec_cb_t cb);
@@ -272,7 +272,7 @@ anim_t* anim_set_exec_cb(anim_t* a, anim_exec_cb_t cb);
 /**
  * @brief 设置动画结束通知回调
  * @param a  目标动画配置
- * @param cb 结束回调，可为 NULL（表示不需要通知）
+ * @param cb 结束回调，可为 ESGUI_NULL（表示不需要通知）
  * @return   返回 a 自身，支持链式调用
  */
 anim_t* anim_set_ready_cb(anim_t* a, anim_ready_cb_t cb);

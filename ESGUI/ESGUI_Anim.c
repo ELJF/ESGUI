@@ -8,8 +8,8 @@
 /* ========== 静态数据区 ========== */
 
 static anim_t  anim_pool[ANIM_MAX_COUNT];
-static anim_t* anim_idle_head = NULL;
-static anim_t* anim_active_head = NULL;
+static anim_t* anim_idle_head = ESGUI_NULL;
+static anim_t* anim_active_head = ESGUI_NULL;
 // 内部自动分配标志位（最多 32 个并发"必须完成"动画）
 static uint32_t s_used_ids = 0;      // 位图：哪些 ID 已被占用
 static uint32_t s_done_ids = 0;    // 位图：哪些 ID 已完成
@@ -36,22 +36,22 @@ static inline int32_t map_range(int32_t x, int32_t in_min, int32_t in_max,
 /**
  * @brief 从空闲链表分配一个动画节点
  * @param 无
- * @return 可用的 anim_t 指针；NULL 表示池满
+ * @return 可用的 anim_t 指针；ESGUI_NULL 表示池满
  *
  * 操作：取空闲链表头部节点，链表头后移。
  * 时间复杂度 O(1)。
  */
 static anim_t* anim_alloc(void) {
-    if (!anim_idle_head) return NULL;
+    if (!anim_idle_head) return ESGUI_NULL;
     anim_t* a = anim_idle_head;
     anim_idle_head = anim_idle_head->next;
-    a->next = NULL;
+    a->next = ESGUI_NULL;
     return a;
 }
 
 /**
  * @brief 将节点归还到空闲链表
- * @param a 要释放的节点指针。传 NULL 安全无操作
+ * @param a 要释放的节点指针。传 ESGUI_NULL 安全无操作
  * @return 无
  *
  * 操作：把节点插到空闲链表头部，状态重置为 IDLE。
@@ -78,7 +78,7 @@ static void anim_remove_active(anim_t* a) {
 
     if (anim_active_head == a) {
         anim_active_head = a->next;
-        a->next = NULL;
+        a->next = ESGUI_NULL;
         return;
     }
 
@@ -86,7 +86,7 @@ static void anim_remove_active(anim_t* a) {
     while (prev->next) {
         if (prev->next == a) {
             prev->next = a->next;
-            a->next = NULL;
+            a->next = ESGUI_NULL;
             return;
         }
         prev = prev->next;
@@ -205,8 +205,8 @@ static int32_t anim_path_apply(const anim_t* a, int32_t p1000) {
 
 void anim_init(void) {
     memset(anim_pool, 0, sizeof(anim_pool));
-    anim_idle_head = NULL;
-    anim_active_head = NULL;
+    anim_idle_head = ESGUI_NULL;
+    anim_active_head = ESGUI_NULL;
     for (int i = ANIM_MAX_COUNT - 1; i >= 0; i--) {
         anim_pool[i].state = ANIM_STATE_IDLE;
         anim_pool[i].next = anim_idle_head;
@@ -226,7 +226,7 @@ static anim_t* anim_find_running(void* var) {
         }
         cur = cur->next;
     }
-    return NULL;
+    return ESGUI_NULL;
 }
 
 /**
@@ -268,7 +268,7 @@ bool anim_set_end(anim_t* a, int32_t end, uint32_t duration) {
 
 
 anim_t* anim_start(anim_t* a) {
-    if (!a || !a->exec_cb) return NULL;
+    if (!a || !a->exec_cb) return ESGUI_NULL;
 
     // 查找同变量正在跑的动画
     anim_t* running = anim_find_running(a->var);
@@ -280,12 +280,12 @@ anim_t* anim_start(anim_t* a) {
     }
 
     anim_t* real = anim_alloc();
-    if (!real) return NULL;
+    if (!real) return ESGUI_NULL;
 
     *real = *a;
     real->state = ANIM_STATE_PLAYING;
     real->start_time = 0;   // 0 表示"尚未开始计时"
-    real->next = NULL;
+    real->next = ESGUI_NULL;
 
     // 立即初始化变量到 start 值，避免第一帧显示旧值
     if (real->exec_cb) {
@@ -414,11 +414,11 @@ void anim_must_complete_reset(void) {
 /* ========== 查询 API ========== */
 
 bool anim_is_running(void) {
-    return (anim_active_head != NULL);
+    return (anim_active_head != ESGUI_NULL);
 }
 
 bool anim_is_running_var(void* var) {
-    if (var == NULL) return false;
+    if (var == ESGUI_NULL) return false;
     anim_t* cur = anim_active_head;
     while (cur) {
         if (cur->var == var) {
@@ -496,7 +496,7 @@ anim_t* anim_set_path(anim_t* a, anim_path_type_t type) {
 
 
 anim_t* anim_set_must_complete(anim_t* a, bool en) {
-    if (!a) return NULL;
+    if (!a) return ESGUI_NULL;
     a->must_complete = en;
     if (en) {
         // 自动分配一个空闲 ID

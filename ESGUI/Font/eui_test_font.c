@@ -1005,7 +1005,7 @@ static const FontCmap eui_test_font_cmaps[] = {
         .range_start    = 0x0030,  /* U+0030 ~ U+0039 */
         .range_length   = 10,
         .glyph_id_start = 1,
-        .unicode_list   = NULL,
+        .unicode_list   = ESGUI_NULL,
         .list_length    = 0,
         .type           = 0,
     },
@@ -1013,7 +1013,7 @@ static const FontCmap eui_test_font_cmaps[] = {
         .range_start    = 0x0041,  /* U+0041 ~ U+005A */
         .range_length   = 26,
         .glyph_id_start = 11,
-        .unicode_list   = NULL,
+        .unicode_list   = ESGUI_NULL,
         .list_length    = 0,
         .type           = 0,
     },
@@ -1021,7 +1021,7 @@ static const FontCmap eui_test_font_cmaps[] = {
         .range_start    = 0x0061,  /* U+0061 ~ U+007A */
         .range_length   = 26,
         .glyph_id_start = 37,
-        .unicode_list   = NULL,
+        .unicode_list   = ESGUI_NULL,
         .list_length    = 0,
         .type           = 0,
     },

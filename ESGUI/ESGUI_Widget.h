@@ -7,6 +7,7 @@
 #define ESGUI_ESGUI_WIDGET_H
 
 #include "ESGUI_BSP_Canvas.h"
+#include "ESGUI_Def.h"
 
 #define ESGUI_WIDGET_PROGBAR_UP    0
 #define ESGUI_WIDGET_PROGBAR_DOWN  1

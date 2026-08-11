@@ -7,6 +7,7 @@
 
 #include "ESGUI_Menu.h"
 #include "ESGUI_DefaultVtbConfig.h"
+#include "ESGUI_Def.h"
 
 typedef struct esgui ESGUI_T;
 

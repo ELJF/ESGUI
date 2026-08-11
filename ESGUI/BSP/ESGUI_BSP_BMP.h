@@ -6,6 +6,7 @@
 #define ESGUI_ESGUI_BSP_BMP_H
 
 #include "ESGUI_BSP_Canvas.h"
+#include "ESGUI_Def.h"
 
 /**
  * Bitmap: 1bpp 位图描述符（页式格式）

@@ -2,8 +2,8 @@
 #include "ESGUI_BSP_BMP.h"
 /**
  * @brief  从 UTF-8 字符串中解码下一个 Unicode 码点
- * @param  txt  输入字符串（以 '\0' 结尾），不能为 NULL
- * @param  idx  入出参：当前字节索引指针，不能为 NULL；返回后指向下一字符首字节
+ * @param  txt  输入字符串（以 '\0' 结尾），不能为 ESGUI_NULL
+ * @param  idx  入出参：当前字节索引指针，不能为 ESGUI_NULL；返回后指向下一字符首字节
  * @return      Unicode 码点（32-bit）；遇到非法首字节时返回 '?' 并跳过一字节
  * @note   支持标准 UTF-8 四字节序列：
  *         0xxxxxxx                    → 1-byte (U+0000~U+007F)
@@ -39,7 +39,7 @@ static uint32_t utf8_decode(const char *txt, uint16_t *idx)
 
 /**
  * @brief  通过 Unicode 码点查找字形索引
- * @param  font    字体指针，不能为 NULL
+ * @param  font    字体指针，不能为 ESGUI_NULL
  * @param  unicode Unicode 码点（32-bit）
  * @retval >=0    字形索引
  * @retval -1     缺字（未找到对应字形）
@@ -72,15 +72,15 @@ int16_t eui_font_get_glyph_id(const Font *font, uint32_t unicode)
 
 /**
  * @brief  计算字符串在指定字体下的总显示宽度（像素）
- * @param  font  字体指针，不能为 NULL
- * @param  text  UTF-8 文本指针，不能为 NULL
+ * @param  font  字体指针，不能为 ESGUI_NULL
+ * @param  text  UTF-8 文本指针，不能为 ESGUI_NULL
  * @retval >=0   字符串总显示宽度（像素）
  * @note   遍历所有字符累加 adv_w（水平步进）。缺字字符按半行高占位。
  *         换行符 '\n' 不增加宽度。
  */
 int eui_get_text_width(const Font *font, const char *text)
 {
-    if (font == NULL || text == NULL) return 0;
+    if (font == ESGUI_NULL || text == ESGUI_NULL) return 0;
 
     uint16_t i = 0;
     int w = 0;
@@ -95,11 +95,11 @@ int eui_get_text_width(const Font *font, const char *text)
 
 /**
  * @brief  绘制 UTF-8 文本
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x      文本起始 X 坐标（左上角）
  * @param  y      文本起始 Y 坐标（行顶）
- * @param  font   字体指针，不能为 NULL
- * @param  text   UTF-8 文本指针，不能为 NULL
+ * @param  font   字体指针，不能为 ESGUI_NULL
+ * @param  text   UTF-8 文本指针，不能为 ESGUI_NULL
  * @param  color  1=白字，0=黑字（挖空）
  * @retval >=0    实际占用宽度（像素）
  * @note   光标从 (x, y) 开始，cy 始终指向行顶。
@@ -109,7 +109,7 @@ int eui_get_text_width(const Font *font, const char *text)
  */
 int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, uint8_t color)
 {
-    if (c == NULL || font == NULL || text == NULL) return 0;
+    if (c == ESGUI_NULL || font == ESGUI_NULL || text == ESGUI_NULL) return 0;
     if (!font->glyphs || !font->bitmap || font->cmap_num == 0) return 0;
 
     uint16_t i = 0;
@@ -155,11 +155,11 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, u
 
 /**
  * @brief  绘制文本，超出 max_w 自动截断（单行）
- * @param  c       Canvas 指针，不能为 NULL
+ * @param  c       Canvas 指针，不能为 ESGUI_NULL
  * @param  x       文本起始 X 坐标
  * @param  y       文本起始 Y 坐标（行顶）
- * @param  font    字体指针，不能为 NULL
- * @param  text    UTF-8 文本指针，不能为 NULL
+ * @param  font    字体指针，不能为 ESGUI_NULL
+ * @param  text    UTF-8 文本指针，不能为 ESGUI_NULL
  * @param  color   1=白字，0=黑字（挖空）
  * @param  max_w   最大可用宽度（像素），必须 >= 0
  * @retval >=0     实际绘制宽度（像素）
@@ -168,7 +168,7 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, u
  */
 int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *text, uint8_t color, int max_w)
 {
-    if (c == NULL || font == NULL || text == NULL || max_w < 0) return 0;
+    if (c == ESGUI_NULL || font == ESGUI_NULL || text == ESGUI_NULL || max_w < 0) return 0;
 
     if (!font->glyphs || !font->bitmap || font->cmap_num == 0) return 0;
 
@@ -218,7 +218,7 @@ int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *te
  */
 int eui_get_text_height_all_line(const Font *font, const char *text)
 {
-    if (!text || !text[0] || font == NULL) return 0;   /* 空字符串高度为 0 */
+    if (!text || !text[0] || font == ESGUI_NULL) return 0;   /* 空字符串高度为 0 */
 
     int lines = 1;                     /* 至少有一行 */
     for (int i = 0; text[i]; i++) {
@@ -231,6 +231,6 @@ int eui_get_text_height_all_line(const Font *font, const char *text)
 
 int eui_get_text_height(const Font *font, const char *text)
 {
-    if (!text || !text[0] || font == NULL) return 0;      /* 空文本无高度 */
+    if (!text || !text[0] || font == ESGUI_NULL) return 0;      /* 空文本无高度 */
     return font->line_height;             /* 单行高度 = 字体行高 */
 }

@@ -6,7 +6,7 @@
 #define ESGUI_ESGUI_MENU_H
 
 #include "ESGUI_Event.h"
-#include "main.h"
+#include "ESGUI_Def.h"
 #include "stdbool.h"
 
 
@@ -59,8 +59,8 @@ typedef struct esgui_menu_item
     int x;  //条目横坐标
     int y;  //条目纵坐标
 
-    const char *label;          // 文本，图形菜单可为 NULL 或作为图注
-    void *icon;                 // 图片数据（你的图形库格式），NULL 表示无图
+    const char *label;          // 文本，图形菜单可为 ESGUI_NULL 或作为图注
+    const void *icon;                 // 图片数据（你的图形库格式），ESGUI_NULL 表示无图
     ESGUI_MenuAction_T (*on_enter)(ESGUI_MenuPage_T *page,void *arg); // 回调函数,按确定后跳转/执行
     void *arg;  //用户自定义参数
 

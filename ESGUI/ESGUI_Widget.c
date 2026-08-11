@@ -35,7 +35,7 @@ static void _progbar_draw_base_h(Canvas *c, int x, int y, uint8_t w, uint16_t le
 
 void ESGUI_WidgetProgrssBarChangeLenPermille(Canvas *c, int x, int y, uint8_t w, uint16_t len, uint16_t permille, uint8_t direction)
 {
-    if (c == NULL || len < 13 || permille > 1000) { return; }
+    if (c == ESGUI_NULL || len < 13 || permille > 1000) { return; }
     uint16_t max_fill = len - 10; /* 4px 底座 + 6px 留白 */
     uint16_t fill = (uint16_t)(((uint32_t)max_fill * permille) / 1000);
     switch (direction) {
@@ -62,7 +62,7 @@ void ESGUI_WidgetProgrssBarChangeLenPermille(Canvas *c, int x, int y, uint8_t w,
 
 void ESGUI_WidgetProgrssBarPermille(Canvas *c, int x, int y, uint8_t w, uint16_t permille, uint8_t direction)
 {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
     uint16_t len = (direction <= ESGUI_WIDGET_PROGBAR_DOWN) ? (uint16_t)c->height : (uint16_t)c->width;
     ESGUI_WidgetProgrssBarChangeLenPermille(c, x, y, w, len, permille, direction);
 }
@@ -74,7 +74,7 @@ void ESGUI_WidgetTextFocusBox(Canvas *c,int x,int y,uint8_t h,uint8_t len) {
 }
 
 void ESGUI_WidgetCheckBoxSquare(Canvas *c,int x,int y,uint8_t h,uint8_t len,bool state) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
     eui_draw_rect_box(c,x,y,x+len,y+h,EUI_MODE_SET);
     if (state) {
         eui_draw_rect_fill(c,x+2,y+2,x+len-2,y+h-2,EUI_MODE_SET);
@@ -82,7 +82,7 @@ void ESGUI_WidgetCheckBoxSquare(Canvas *c,int x,int y,uint8_t h,uint8_t len,bool
 }
 
 void ESGUI_WidgetCheckBoxRound(Canvas *c,int x,int y,uint8_t r,bool state) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
     eui_draw_circle_box(c,x,y,r,EUI_MODE_SET);
     if (state) {
         eui_draw_circle_fill(c,x,y,r - 2,EUI_MODE_SET);
@@ -91,7 +91,7 @@ void ESGUI_WidgetCheckBoxRound(Canvas *c,int x,int y,uint8_t r,bool state) {
 
 bool ESGUI_WidgetCheckMarker(const char *raw,char marker,uint16_t *out_len,char *out_ch)
 {
-    if (raw == NULL) {
+    if (raw == ESGUI_NULL) {
         if (out_len) *out_len = 0;
         if (out_ch) *out_ch = '\0';
         return 0;
@@ -108,7 +108,7 @@ bool ESGUI_WidgetCheckMarker(const char *raw,char marker,uint16_t *out_len,char 
 }
 
 void ESGUI_WidgetBmpFocusBox(Canvas *c, int x, int y, uint16_t w, uint16_t h) {
-    if (c == NULL || w == 0 || h == 0) return;
+    if (c == ESGUI_NULL || w == 0 || h == 0) return;
     int x_f = x - 2;
     int y_f = y - 2;
     int x_r = x + w + 1;
@@ -130,7 +130,7 @@ void ESGUI_WidgetBmpFocusBox(Canvas *c, int x, int y, uint16_t w, uint16_t h) {
 }
 
 void ESGUI_WidgetBmpFocusBoxAnim(Canvas *c, int x, int y, uint16_t box_w, uint16_t box_h) {
-    if (c == NULL || box_w < 8 || box_h < 8) return;
+    if (c == ESGUI_NULL || box_w < 8 || box_h < 8) return;
     int x0 = x;
     int y0 = y;
     int x1 = x0 + (int)box_w - 1;

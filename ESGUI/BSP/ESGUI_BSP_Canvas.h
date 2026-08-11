@@ -5,7 +5,7 @@
 #ifndef ESGUI_ESGUI_BSP_CANVAS_H
 #define ESGUI_ESGUI_BSP_CANVAS_H
 
-#include "main.h"
+#include "ESGUI_Def.h"
 #include "stdbool.h"
 
 /**
@@ -116,8 +116,8 @@ void canvas_clear(Canvas *c, uint8_t color);
 
 /**
  * @brief  初始化分块刷新迭代器
- * @param  it       迭代器指针，不能为 NULL
- * @param  c        Canvas 指针，不能为 NULL
+ * @param  it       迭代器指针，不能为 ESGUI_NULL
+ * @param  c        Canvas 指针，不能为 ESGUI_NULL
  * @param  strip_h  条带高度（像素），内部强制向上对齐到 8 的倍数，最小为 8
  */
 void canvas_strip_iter_init(CanvasStripIter *it, Canvas *c, int strip_h);
@@ -141,7 +141,7 @@ void canvas_strip_iter_bind(CanvasStripIter *it);
 /**
  * @brief  将当前条带内容送屏
  * @param  it         迭代器指针
- * @param  flush_fn   送屏回调，不能为 NULL
+ * @param  flush_fn   送屏回调，不能为 ESGUI_NULL
  * @param  flush_user 送屏回调的用户数据
  */
 void canvas_strip_iter_flush(CanvasStripIter *it,
