@@ -1,0 +1,5 @@
+{
+    "idf.currentSetup": "G:\\software_install\\ESPIDF\\v6.0.2\\esp-idf",
+    "idf.flashType": "JTAG",
+    "idf.portWin": "COM10"
+}
