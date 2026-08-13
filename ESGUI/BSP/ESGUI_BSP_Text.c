@@ -1,6 +1,5 @@
 #include "ESGUI_BSP_Text.h"
 #include "ESGUI_BSP_BMP.h"
-
 /**
  * @brief  从 UTF-8 字符串中解码下一个 Unicode 码点
  * @param  txt  输入字符串（以 '\0' 结尾），不能为 ESGUI_NULL
@@ -44,15 +43,14 @@ static eui_uint32_t utf8_decode(const char *txt, eui_uint16_t *idx)
  * @param  unicode Unicode 码点（32-bit）
  * @retval >=0    字形索引
  * @retval -1     缺字（未找到对应字形）
- * @note   遍历字体中的所有 cmap（映射表）。
- *         type=0 连续范围直接计算；type=1 稀疏列表使用二分查找（要求升序）。
+ * @note   遍历字体中的所有 cmap（映射表），先匹配连续范围，再匹配稀疏列表。
  */
 eui_int16_t eui_font_get_glyph_id(const Font *font, eui_uint32_t unicode)
 {
     /* 空指针保护 */
     if (!font || !font->cmaps) return -1;
 
-    for (eui_uint32_t i = 0; i < font->cmap_num; i++) {
+    for (eui_uint8_t i = 0; i < font->cmap_num; i++) {
         const FontCmap *cm = &font->cmaps[i];
 
         /* cmap 空指针保护 */
@@ -63,21 +61,10 @@ eui_int16_t eui_font_get_glyph_id(const Font *font, eui_uint32_t unicode)
                 unicode < cm->range_start + cm->range_length)
                 return (eui_int16_t)(cm->glyph_id_start + (unicode - cm->range_start));
         } else {
-            /* ========== 二分查找（要求 unicode_list 升序） ========== */
-            int left = 0;
-            int right = (int)cm->list_length - 1;
-            while (left <= right) {
-                int mid = (left + right) >> 1;
-                eui_uint32_t mid_val = cm->unicode_list[mid];
-                if (mid_val == unicode) {
-                    return (eui_int16_t)(cm->glyph_id_start + mid);
-                } else if (mid_val < unicode) {
-                    left = mid + 1;
-                } else {
-                    right = mid - 1;
-                }
+            for (eui_uint16_t j = 0; j < cm->list_length; j++) {
+                if (cm->unicode_list[j] == unicode)
+                    return (eui_int16_t)(cm->glyph_id_start + j);
             }
-            /* ======================================================== */
         }
     }
     return -1;
@@ -97,23 +84,9 @@ int eui_get_text_width(const Font *font, const char *text)
 
     eui_uint16_t i = 0;
     int w = 0;
-
-    /* 字符缓存：避免连续相同字符重复查表 */
-    eui_uint32_t prev_cp = 0;
-    eui_int16_t  prev_gid = -2;   /* -2 表示缓存无效 */
-
     while (text[i]) {
         eui_uint32_t cp = utf8_decode(text, &i);
-        eui_int16_t gid;
-
-        if (cp == prev_cp && prev_gid != -2) {
-            gid = prev_gid;
-        } else {
-            gid = eui_font_get_glyph_id(font, cp);
-            prev_cp = cp;
-            prev_gid = gid;
-        }
-
+        eui_int16_t gid = eui_font_get_glyph_id(font, cp);
         if (gid >= 0) w += font->glyphs[gid].adv_w;
         else w += font->line_height / 2; /* 缺字用半行高占位 */
     }
@@ -143,10 +116,6 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, e
     int cx = x, cy = y;
     int max_x = cx;
 
-    /* 字符缓存：避免连续相同字符重复查表 */
-    eui_uint32_t prev_cp = 0;
-    eui_int16_t  prev_gid = -2;   /* -2 表示缓存无效 */
-
     while (text[i]) {
         if (text[i] == '\n') {
             if (cx > max_x) max_x = cx;
@@ -157,17 +126,7 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, e
         }
 
         eui_uint32_t cp = utf8_decode(text, &i);
-        eui_int16_t gid;
-
-
-        if (cp == prev_cp && prev_gid != -2) {
-            gid = prev_gid;
-        } else {
-            gid = eui_font_get_glyph_id(font, cp);
-            prev_cp = cp;
-            prev_gid = gid;
-        }
-
+        eui_int16_t gid = eui_font_get_glyph_id(font, cp);
         if (gid < 0) {
             cx += font->line_height / 2;
             continue;
@@ -175,9 +134,8 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, e
 
         const FontGlyph *g = &font->glyphs[gid];
 
-
         /* 新增：glyph 越界保护（防止 bitmap_index 超出 bitmap 数组） */
-        if (!g || g->bitmap_index >= 0xFFFFFFFF) continue;  /* 无意义，直接删掉 */
+        if (!g || g->bitmap_index >= 0xFFFF) continue;  /* 简单检查 */
 
         if (g->box_w && g->box_h) {
             /* 新增：确保 bitmap 指针有效 */
@@ -217,24 +175,11 @@ int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *te
     eui_uint16_t i = 0;
     int cx = x, cy = y;
 
-    /* 字符缓存：避免连续相同字符重复查表 */
-    eui_uint32_t prev_cp = 0;
-    eui_int16_t  prev_gid = -2;   /* -2 表示缓存无效 */
-
     while (text[i]) {
         if (text[i] == '\n') break;
 
         eui_uint32_t cp = utf8_decode(text, &i);
-        eui_int16_t gid;
-
-        if (cp == prev_cp && prev_gid != -2) {
-            gid = prev_gid;
-        } else {
-            gid = eui_font_get_glyph_id(font, cp);
-            prev_cp = cp;
-            prev_gid = gid;
-        }
-
+        eui_int16_t gid = eui_font_get_glyph_id(font, cp);
         if (gid < 0) {
             if (cx + font->line_height / 2 > x + max_w) break;
             cx += font->line_height / 2;
@@ -242,8 +187,7 @@ int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *te
         }
 
         const FontGlyph *g = &font->glyphs[gid];
-        if (!g || g->bitmap_index >= 0xFFFFFFFF) continue;  /* 无意义，直接删掉 */
-
+        if (!g || g->bitmap_index >= 0xFFFF) continue;
 
         if (cx + g->adv_w > x + max_w) break;
 
@@ -260,6 +204,7 @@ int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *te
     }
     return cx - x;
 }
+
 
 /**
  * get_text_height: 计算字符串总显示高度
@@ -281,6 +226,8 @@ int eui_get_text_height_all_line(const Font *font, const char *text)
     }
     return lines * font->line_height;
 }
+
+
 
 int eui_get_text_height(const Font *font, const char *text)
 {
