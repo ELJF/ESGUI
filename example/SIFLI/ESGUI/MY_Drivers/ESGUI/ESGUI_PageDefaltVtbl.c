@@ -38,7 +38,7 @@
  * @brief 标准 offsetof 宏的本地回退实现
  * @note  用于计算结构体成员相对于结构体起始地址的偏移量
  */
-#define offsetof(type, member) ((size_t)&((type *)0)->member)
+#define offsetof(type, member) ((eui_uint32_t)&((type *)0)->member)
 #endif
 
 
@@ -67,15 +67,15 @@ static void  popup_data_free();    /**< 释放通用弹窗数据内存 */
 #if ESGUI_ENABLE_BMP_MENU || ESGUI_ENABLE_TEXT_MENU
 /**
  * @brief 过渡动画逐帧回调：将放大 1000 倍的动画值映射到 0~8 级遮罩
- * @param var   指向 uint16_t 类型 trans_count 的指针
+ * @param var   指向 eui_uint16_t 类型 trans_count 的指针
  * @param value 动画当前值（已放大 1000 倍，范围 0~8000）
  * @note  内部将 value/1000 得到实际遮罩级别，再限制到 0~8
  */
-static void anim_cb_trans_level(void *var, int32_t value) {
+static void anim_cb_trans_level(void *var, eui_int32_t value) {
     if (var) {
-        uint16_t v = (uint16_t)(value / 1000);
+        eui_uint16_t v = (eui_uint16_t)(value / 1000);
         if (v > 8) v = 8;
-        *((uint16_t *)var) = v;
+        *((eui_uint16_t *)var) = v;
     }
 }
 #endif
@@ -87,15 +87,15 @@ static void anim_cb_trans_level(void *var, int32_t value) {
 
 #if ESGUI_ENABLE_TEXT_MENU
 /**
- * @brief 将 int16_t 转换为十进制字符串（无 sprintf，零堆栈开销）
+ * @brief 将 eui_int16_t 转换为十进制字符串（无 sprintf，零堆栈开销）
  * @param v    待转换的整数（支持负数）
  * @param out  输出缓冲区，需足够容纳结果（最大 6 字节：-32768 + \0）
  * @return     写入的字符数（不含 \0）
  * @note  从高位到低位逐位输出，跳过前导零，确保最小字符串长度
  */
-static uint8_t _int16_to_str(int16_t v, char *out)
+static eui_uint8_t _int16_to_str(eui_int16_t v, char *out)
 {
-    uint8_t n = 0;
+    eui_uint8_t n = 0;
     if (v < 0) { out[n++] = '-'; v = -v; }
     if (v >= 10000) out[n++] = (char)('0' + (v / 10000) % 10);
     if (v >= 1000)  out[n++] = (char)('0' + (v / 1000) % 10);
@@ -130,23 +130,23 @@ static uint8_t _int16_to_str(int16_t v, char *out)
 /** @brief 文本菜单页面数据静态内存池 */
 static ESGUI_DEFALT_TEXT_PAGE_DATA_T s_page_data_pool[PAGE_DATA_POOL_SIZE];
 /** @brief 内存池分配位图（0=空闲，1=占用） */
-static uint8_t s_text_page_data_alloc_map[PAGE_DATA_POOL_SIZE] = {0};
+static eui_uint8_t s_text_page_data_alloc_map[PAGE_DATA_POOL_SIZE] = {0};
 
 /**
  * @brief 从静态内存池分配一个文本菜单页面数据实例
- * @return 成功返回指针，失败返回 NULL（池满）
+ * @return 成功返回指针，失败返回 ESGUI_NULL（池满）
  * @note  自动清零分配的内存，确保初始状态一致
  */
 static ESGUI_DEFALT_TEXT_PAGE_DATA_T *text_page_data_alloc(void)
 {
-    for (uint8_t i = 0; i < PAGE_DATA_POOL_SIZE; i++) {
+    for (eui_uint8_t i = 0; i < PAGE_DATA_POOL_SIZE; i++) {
         if (s_text_page_data_alloc_map[i] == 0) {
             s_text_page_data_alloc_map[i] = 1;
             memset(&s_page_data_pool[i], 0, sizeof(ESGUI_DEFALT_TEXT_PAGE_DATA_T));
             return &s_page_data_pool[i];
         }
     }
-    return NULL;
+    return ESGUI_NULL;
 }
 
 /**
@@ -156,7 +156,7 @@ static ESGUI_DEFALT_TEXT_PAGE_DATA_T *text_page_data_alloc(void)
  */
 static void text_page_data_free(ESGUI_DEFALT_TEXT_PAGE_DATA_T *p)
 {
-    if (p == NULL) return;
+    if (p == ESGUI_NULL) return;
     int idx = (int)(p - s_page_data_pool);
     if (idx >= 0 && idx < PAGE_DATA_POOL_SIZE) {
         s_text_page_data_alloc_map[idx] = 0;
@@ -171,9 +171,9 @@ static void text_page_data_free(ESGUI_DEFALT_TEXT_PAGE_DATA_T *p)
  * @param it 条带迭代器指针
  * @return 画布宽度（像素）
  */
-static int16_t canvas_get_width(const CanvasStripIter *it)
+static eui_int16_t canvas_get_width(const CanvasStripIter *it)
 {
-    return (int16_t)it->canvas->width;
+    return (eui_int16_t)it->canvas->width;
 }
 
 /**
@@ -181,9 +181,9 @@ static int16_t canvas_get_width(const CanvasStripIter *it)
  * @param it 条带迭代器指针
  * @return 画布高度（像素）
  */
-static int16_t canvas_get_height(const CanvasStripIter *it)
+static eui_int16_t canvas_get_height(const CanvasStripIter *it)
 {
-    return (int16_t)it->canvas->height;
+    return (eui_int16_t)it->canvas->height;
 }
 
 
@@ -197,21 +197,21 @@ static int16_t canvas_get_height(const CanvasStripIter *it)
  * @note  若检测到 ESGUI_WIDGET_DEFAULT_MARK 标记，则截取标记前的内容计算宽度
  *        否则直接计算完整字符串宽度。用于焦点框宽度同步和长文本判断。
  */
-static uint16_t get_pure_text_width(const char *label)
+static eui_uint16_t get_pure_text_width(const char *label)
 {
-    uint16_t pure_len;
+    eui_uint16_t pure_len;
     char marker_type;
     if (ESGUI_WidgetCheckMarker(label, ESGUI_WIDGET_DEFAULT_MARK, &pure_len, &marker_type)) {
         if (pure_len == 0) return 0;
         char tmp[ESGUI_LABEL_TMP_BUF_SIZE];
-        uint16_t copy_len = (pure_len < (ESGUI_LABEL_TMP_BUF_SIZE - 1))
+        eui_uint16_t copy_len = (pure_len < (ESGUI_LABEL_TMP_BUF_SIZE - 1))
                           ? pure_len
                           : (ESGUI_LABEL_TMP_BUF_SIZE - 1);
         memcpy(tmp, label, copy_len);
         tmp[copy_len] = '\0';
-        return (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, tmp);
+        return (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, tmp);
     }
-    return (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, label);
+    return (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, label);
 }
 #endif
 
@@ -233,8 +233,8 @@ static uint16_t get_pure_text_width(const char *label)
  *        - 焦点在底部区域：显示最后 buff 条
  */
 static void calc_visible_range(
-    uint16_t item_num, uint16_t buff, uint16_t stay, uint16_t focus_idx,
-    uint16_t *out_start, uint16_t *out_end)
+    eui_uint16_t item_num, eui_uint16_t buff, eui_uint16_t stay, eui_uint16_t focus_idx,
+    eui_uint16_t *out_start, eui_uint16_t *out_end)
 {
     if (item_num <= buff) {
         *out_start = 0;
@@ -261,8 +261,8 @@ static void calc_visible_range(
  * @return 首条索引（first_visible）
  * @note  与 calc_visible_range 逻辑一致，但只返回 start
  */
-static uint16_t calc_first_visible_for_focus(
-    uint16_t item_num, uint16_t buff, uint16_t stay, uint16_t focus_idx)
+static eui_uint16_t calc_first_visible_for_focus(
+    eui_uint16_t item_num, eui_uint16_t buff, eui_uint16_t stay, eui_uint16_t focus_idx)
 {
     if (item_num <= buff) return 0;
     if (focus_idx < stay) return 0;
@@ -277,9 +277,9 @@ static uint16_t calc_first_visible_for_focus(
  * @param item_stride    条目步进（像素）
  * @return 焦点框 Y 坐标
  */
-static int16_t calc_focus_y(int16_t top_y, uint16_t focus_in_view, uint16_t item_stride)
+static eui_int16_t calc_focus_y(eui_int16_t top_y, eui_uint16_t focus_in_view, eui_uint16_t item_stride)
 {
-    return top_y + (int16_t)(focus_in_view * item_stride);
+    return top_y + (eui_int16_t)(focus_in_view * item_stride);
 }
 
 /**
@@ -289,9 +289,9 @@ static int16_t calc_focus_y(int16_t top_y, uint16_t focus_in_view, uint16_t item
  * @param item_stride    条目步进（像素）
  * @return 列表基线 Y 坐标（items[0].y 的目标值）
  */
-static int16_t calc_list_y(int16_t top_y, uint16_t first_visible, uint16_t item_stride)
+static eui_int16_t calc_list_y(eui_int16_t top_y, eui_uint16_t first_visible, eui_uint16_t item_stride)
 {
-    return top_y - (int16_t)(first_visible * item_stride);
+    return top_y - (eui_int16_t)(first_visible * item_stride);
 }
 
 /**
@@ -301,9 +301,9 @@ static int16_t calc_list_y(int16_t top_y, uint16_t first_visible, uint16_t item_
  * @return 千分比（0~1000），已做四舍五入
  * @note  公式：((focus_idx + 1) * 1000 + item_num / 2) / item_num
  */
-static uint16_t calc_progress_permille(uint16_t focus_idx, uint16_t item_num)
+static eui_uint16_t calc_progress_permille(eui_uint16_t focus_idx, eui_uint16_t item_num)
 {
-    return (uint16_t)(((uint32_t)(focus_idx + 1) * 1000U + item_num / 2U) / item_num);
+    return (eui_uint16_t)(((eui_uint32_t)(focus_idx + 1) * 1000U + item_num / 2U) / item_num);
 }
 #endif /* 可见区域计算 */
 
@@ -311,32 +311,32 @@ static uint16_t calc_progress_permille(uint16_t focus_idx, uint16_t item_num)
 /* ---------- 4.5 通用动画回调函数 ---------- */
 
 /**
- * @brief 通用动画回调：将 int32_t 值写入 uint16_t 变量
- * @param var   指向 uint16_t 的指针
+ * @brief 通用动画回调：将 eui_int32_t 值写入 eui_uint16_t 变量
+ * @param var   指向 eui_uint16_t 的指针
  * @param value 动画当前值
  * @note  用于 progress_bar_permille, line_len, trans_count 等
  */
-static void anim_cb_uint16(void *var, int32_t value) {
-    if (var) *((uint16_t *)var) = (uint16_t)value;
+static void anim_cb_uint16(void *var, eui_int32_t value) {
+    if (var) *((eui_uint16_t *)var) = (eui_uint16_t)value;
 }
 
 /**
- * @brief 通用动画回调：将 int32_t 值写入 int16_t 变量
- * @param var   指向 int16_t 的指针
+ * @brief 通用动画回调：将 eui_int32_t 值写入 eui_int16_t 变量
+ * @param var   指向 eui_int16_t 的指针
  * @param value 动画当前值
  * @note  用于 focus_box_w, focus_box_y, long_text_x 等
  */
-static void anim_cb_int16(void *var, int32_t value) {
-    if (var) *((int16_t *)var) = (int16_t)value;
+static void anim_cb_int16(void *var, eui_int32_t value) {
+    if (var) *((eui_int16_t *)var) = (eui_int16_t)value;
 }
 
 /**
- * @brief 通用动画回调：将 int32_t 值写入 int 变量
+ * @brief 通用动画回调：将 eui_int32_t 值写入 int 变量
  * @param var   指向 int 的指针
  * @param value 动画当前值
  * @note  用于 items[0].y 等列表整体滚动
  */
-static void anim_cb_int(void *var, int32_t value) {
+static void anim_cb_int(void *var, eui_int32_t value) {
     if (var) *((int *)var) = (int)value;
 }
 
@@ -351,14 +351,14 @@ static void anim_cb_int(void *var, int32_t value) {
  * @param duration  动画持续时间（毫秒）
  * @note  从当前值平滑过渡到目标值，使用 EASE_OUT 曲线
  */
-static void start_progress_bar_anim(ESGUI_MenuPage_T *page, uint16_t permille, uint32_t duration)
+static void start_progress_bar_anim(ESGUI_MenuPage_T *page, eui_uint16_t permille, eui_uint32_t duration)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     anim_t anim = {0};
     anim.var       = &page_data->progress_bar_permille;
-    anim.start     = (int32_t)page_data->progress_bar_permille;
-    anim.end       = (int32_t)permille;
+    anim.start     = (eui_int32_t)page_data->progress_bar_permille;
+    anim.end       = (eui_int32_t)permille;
     anim.exec_cb   = anim_cb_uint16;
     anim.duration  = duration;
     anim.path_type = ANIM_PATH_EASE_OUT;
@@ -373,9 +373,9 @@ static void start_progress_bar_anim(ESGUI_MenuPage_T *page, uint16_t permille, u
  * @param duration  动画持续时间（毫秒）
  * @note  同时启动宽度和 Y 坐标两个独立动画，使用同一缓动曲线
  */
-static void start_focus_box_anim(ESGUI_MenuPage_T *page, int16_t w, int16_t y, uint32_t duration)
+static void start_focus_box_anim(ESGUI_MenuPage_T *page, eui_int16_t w, eui_int16_t y, eui_uint32_t duration)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     anim_t anim_w = {0};
     anim_t anim_y = {0};
@@ -402,9 +402,9 @@ static void start_focus_box_anim(ESGUI_MenuPage_T *page, int16_t w, int16_t y, u
  * @param duration  动画持续时间（毫秒）
  * @note  当焦点从顶部区域移入中间区域时，列表整体滚动以保持焦点在屏幕内
  */
-static void start_item_scroll_anim(ESGUI_MenuPage_T *page, int y, uint32_t duration)
+static void start_item_scroll_anim(ESGUI_MenuPage_T *page, int y, eui_uint32_t duration)
 {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     anim_t anim = {0};
     anim.var      = &page->items[0].y;
     anim.start    = page->items[0].y;
@@ -424,12 +424,12 @@ static void start_item_scroll_anim(ESGUI_MenuPage_T *page, int y, uint32_t durat
  */
 static void start_long_text_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     anim_t anim = {0};
     anim.var        = &page_data->long_text_x;
     anim.start      = ESGUI_TEXT_MARGIN_X;
-    anim.end        = -(int32_t)page_data->text_len - (int32_t)ESGUI_LONG_TEXT_GAP;
+    anim.end        = -(eui_int32_t)page_data->text_len - (eui_int32_t)ESGUI_LONG_TEXT_GAP;
     anim.exec_cb    = anim_cb_int16;
     anim.duration   = 7500;         /* 7.5 秒完成一次完整滚动 */
     anim.path_type  = ANIM_PATH_LINEAR;
@@ -450,7 +450,7 @@ static void text_trans_anim_ready_cb(struct anim_t *a) {
     if (!a || !a->var) return;
     /* 通过成员偏移反推结构体基地址，避免存储额外指针 */
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = (ESGUI_DEFALT_TEXT_PAGE_DATA_T *)
-        ((uint8_t *)a->var - offsetof(ESGUI_DEFALT_TEXT_PAGE_DATA_T, trans_count));
+        ((eui_uint8_t *)a->var - offsetof(ESGUI_DEFALT_TEXT_PAGE_DATA_T, trans_count));
     pd->trans_active = 0;
 }
 
@@ -462,7 +462,7 @@ static void text_trans_anim_ready_cb(struct anim_t *a) {
  */
 static void start_page_transition_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
     if (pd->trans_active) return;
 
@@ -479,14 +479,14 @@ static void start_page_transition_anim(ESGUI_MenuPage_T *page)
 #if ESGUI_PAGE_TRANSITION_TYPE == 1
     /* 缩放模式：进入时条目从 0 放大到目标尺寸 */
     {
-        uint16_t focus_idx = page->focus_idx;
-        int16_t target_y = pd->title_h + ESGUI_TITLE_LINE_OFFSET;
-        uint16_t first_visible = calc_first_visible_for_focus(page->item_num, pd->buff, pd->stay, focus_idx);
-        uint16_t focus_in_view = focus_idx - first_visible;
-        int16_t focus_y = calc_focus_y(target_y, focus_in_view, pd->item_stride);
-        uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
-        int16_t max_text_w = canvas_get_width(page->render_ctx) - (int16_t)pd->text_need_len - 2;
-        int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+        eui_uint16_t focus_idx = page->focus_idx;
+        eui_int16_t target_y = pd->title_h + ESGUI_TITLE_LINE_OFFSET;
+        eui_uint16_t first_visible = calc_first_visible_for_focus(page->item_num, pd->buff, pd->stay, focus_idx);
+        eui_uint16_t focus_in_view = focus_idx - first_visible;
+        eui_int16_t focus_y = calc_focus_y(target_y, focus_in_view, pd->item_stride);
+        eui_uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
+        eui_int16_t max_text_w = canvas_get_width(page->render_ctx) - (eui_int16_t)pd->text_need_len - 2;
+        eui_int16_t focus_w = (eui_int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
         if (focus_w > max_text_w) focus_w = max_text_w;
         if (focus_w < 0) focus_w = 0;
 
@@ -503,7 +503,7 @@ static void start_page_transition_anim(ESGUI_MenuPage_T *page)
         /* 焦点框从屏幕中心 Y 移动到目标 Y */
         anim_t anim_fy = {0};
         anim_fy.var       = &pd->focus_box_y;
-        anim_fy.start     = (int16_t)(canvas_get_height(page->render_ctx) / 2);
+        anim_fy.start     = (eui_int16_t)(canvas_get_height(page->render_ctx) / 2);
         anim_fy.end       = focus_y;
         anim_fy.exec_cb   = anim_cb_int16;
         anim_fy.duration  = ESGUI_PAGE_TRANSITION_ANIM_TIME;
@@ -511,10 +511,10 @@ static void start_page_transition_anim(ESGUI_MenuPage_T *page)
         anim_start(&anim_fy);
 
         /* 列表从屏幕中心下方滑入 */
-        int16_t list_y = calc_list_y(target_y, first_visible, pd->item_stride);
+        eui_int16_t list_y = calc_list_y(target_y, first_visible, pd->item_stride);
         anim_t anim_ly = {0};
         anim_ly.var       = &page->items[0].y;
-        anim_ly.start     = (int16_t)(canvas_get_height(page->render_ctx));
+        anim_ly.start     = (eui_int16_t)(canvas_get_height(page->render_ctx));
         anim_ly.end       = list_y;
         anim_ly.exec_cb   = anim_cb_int;
         anim_ly.duration  = ESGUI_PAGE_TRANSITION_ANIM_TIME;
@@ -534,7 +534,7 @@ static void start_page_transition_anim(ESGUI_MenuPage_T *page)
  */
 static void start_page_exit_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
     if (pd->trans_active) return;
 
@@ -564,7 +564,7 @@ static void start_page_exit_anim(ESGUI_MenuPage_T *page)
  */
 static void start_first_in_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
     anim_t line_anim = {0};
@@ -577,12 +577,12 @@ static void start_first_in_anim(ESGUI_MenuPage_T *page)
     if (page->title && page->title[0]) {
         anim_start(&line_anim);
     }
-    uint16_t permille = calc_progress_permille(page->focus_idx, page->item_num);
+    eui_uint16_t permille = calc_progress_permille(page->focus_idx, page->item_num);
     start_progress_bar_anim(page, permille, 600);
-    int16_t focus_w = (int16_t)get_pure_text_width(page->items[0].label) + ESGUI_FOCUS_BOX_PAD_X;
-    int16_t focus_y = page_data->title_h + ESGUI_TITLE_LINE_OFFSET;
+    eui_int16_t focus_w = (eui_int16_t)get_pure_text_width(page->items[0].label) + ESGUI_FOCUS_BOX_PAD_X;
+    eui_int16_t focus_y = page_data->title_h + ESGUI_TITLE_LINE_OFFSET;
     start_focus_box_anim(page, focus_w, focus_y, 600);
-    uint16_t text_len = get_pure_text_width(page->items[0].label);
+    eui_uint16_t text_len = get_pure_text_width(page->items[0].label);
     page_data->text_len = text_len;
     page->items[0].y = -(page_data->title_h * 5);
     start_item_scroll_anim(page, focus_y, 600);
@@ -601,12 +601,12 @@ static void start_first_in_anim(ESGUI_MenuPage_T *page)
  *        '1' → 圆形单选框（宽 10px）
  *        '2' → 数值显示（宽 20px）
  */
-uint16_t esgui_text_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *page, uint16_t indx)
+eui_uint16_t esgui_text_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *page, eui_uint16_t indx)
 {
-    if (page == NULL) return 0;
+    if (page == ESGUI_NULL) return 0;
     (void)page;
     char c;
-    if (ESGUI_WidgetCheckMarker(page->items[indx].label, ESGUI_WIDGET_DEFAULT_MARK, NULL, &c)) {
+    if (ESGUI_WidgetCheckMarker(page->items[indx].label, ESGUI_WIDGET_DEFAULT_MARK, ESGUI_NULL, &c)) {
         switch (c) {
             case '0':
             case '1': return 10;
@@ -623,19 +623,19 @@ uint16_t esgui_text_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *page, 
  * @param indx  条目索引
  * @return 实际占用的宽度（像素），无标记返回 0
  * @note  在条目右侧（进度条左侧）绘制标记图形。
- *        复选框/单选框状态由标记字符决定，数值由 items[indx].arg 指向的 int16_t 提供。
+ *        复选框/单选框状态由标记字符决定，数值由 items[indx].arg 指向的 eui_int16_t 提供。
  */
-uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, uint16_t indx)
+eui_uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx)
 {
-    if (page == NULL) return 0;
+    if (page == ESGUI_NULL) return 0;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
     char c;
-    uint16_t pure_len;
+    eui_uint16_t pure_len;
     if (!ESGUI_WidgetCheckMarker(page->items[indx].label, ESGUI_WIDGET_DEFAULT_MARK, &pure_len, &c)) {
         return 0;
     }
-    int16_t x_base = canvas_get_width(c_it) - ESGUI_PROGRESS_BAR_W;
+    eui_int16_t x_base = canvas_get_width(c_it) - ESGUI_PROGRESS_BAR_W;
     switch (c) {
         case '0':
             ESGUI_WidgetCheckBoxSquare(c_it->canvas,
@@ -651,7 +651,7 @@ uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, uint16
             return 10;
         case '2': {
             char buff[10] = {0};
-            _int16_to_str(*(int16_t*)page->items[indx].arg, buff);
+            _int16_to_str(*(eui_int16_t*)page->items[indx].arg, buff);
             eui_draw_text(c_it->canvas,
                 x_base - 15,
                 page->items[indx].y,
@@ -677,21 +677,21 @@ uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, uint16
  */
 void esgui_text_menu_defalt_on_create(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *data = text_page_data_alloc();
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     page->draw_data = data;
     if (page->title && page->title[0]) {
-        data->title_h = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->title);
+        data->title_h = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->title);
         data->font_height = data->title_h;
     } else {
         data->title_h = 0;
-        data->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
+        data->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
     }
     data->item_stride = data->font_height + ESGUI_ITEM_SPACING;
     CanvasStripIter *c_it = page->render_ctx;
-    int16_t content_h = canvas_get_height(c_it) - data->title_h - ESGUI_TITLE_LINE_OFFSET;
-    data->buff = (uint16_t)(content_h / data->item_stride);
+    eui_int16_t content_h = canvas_get_height(c_it) - data->title_h - ESGUI_TITLE_LINE_OFFSET;
+    data->buff = (eui_uint16_t)(content_h / data->item_stride);
     data->stay = (data->buff + 1) / 2;
     data->text_need_len = ESGUI_PROGRESS_BAR_W;
 
@@ -709,8 +709,8 @@ void esgui_text_menu_defalt_on_create(ESGUI_MenuPage_T *page)
  */
 void esgui_text_menu_defalt_on_destroy(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL) return;
-    if (page->draw_data != NULL) {
+    if (page == ESGUI_NULL) return;
+    if (page->draw_data != ESGUI_NULL) {
         ESGUI_DEFALT_TEXT_PAGE_DATA_T *data = page->draw_data;
         anim_stop_all(&data->long_text_x);
         anim_stop_all(&data->focus_box_w);
@@ -719,9 +719,9 @@ void esgui_text_menu_defalt_on_destroy(ESGUI_MenuPage_T *page)
         anim_stop_all(&page->items[0].y);
         anim_stop_all(&data->trans_count);  /* 停止可能正在运行的过渡动画 */
         text_page_data_free(page->draw_data);
-        page->draw_data = NULL;
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -736,39 +736,39 @@ void esgui_text_menu_defalt_on_destroy(ESGUI_MenuPage_T *page)
  *        4. 启动进度条、焦点框、列表滚动动画
  *        5. 若 old_idx == new_idx（Pop 恢复），启动百叶窗淡入
  */
-void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx)
+void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx)
 {
     (void)old_idx;
     (void)new_idx;
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
     const esgui_page_vtable_t *vtbl = page->vtbl;
-    uint16_t focus_idx = page->focus_idx;
-    uint16_t item_num  = page->item_num;
-    int16_t  canvas_w  = canvas_get_width(c_it);
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_uint16_t item_num  = page->item_num;
+    eui_int16_t  canvas_w  = canvas_get_width(c_it);
 
-    uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
+    eui_uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
     pd->text_len = text_len;
 
-    uint16_t need_len = ESGUI_PROGRESS_BAR_W;
-    if (vtbl->get_special_item_draw_w != NULL) {
+    eui_uint16_t need_len = ESGUI_PROGRESS_BAR_W;
+    if (vtbl->get_special_item_draw_w != ESGUI_NULL) {
         need_len += vtbl->get_special_item_draw_w(page, focus_idx);
     }
     pd->text_need_len = need_len;
 
-    int16_t max_text_w = canvas_w - (int16_t)need_len - 2;
+    eui_int16_t max_text_w = canvas_w - (eui_int16_t)need_len - 2;
     pd->flags = (pd->flags & ~(FLAG_FOCUS_LONG_TEXT))
-              | ((text_len > (uint16_t)max_text_w) ? FLAG_FOCUS_LONG_TEXT : 0);
+              | ((text_len > (eui_uint16_t)max_text_w) ? FLAG_FOCUS_LONG_TEXT : 0);
 
-    int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+    eui_int16_t focus_w = (eui_int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
     if (focus_w > max_text_w) focus_w = max_text_w;
     if (focus_w < 0) focus_w = 0;
 
-    int16_t top_y = pd->title_h + ESGUI_TITLE_LINE_OFFSET;
-    uint16_t first_visible = calc_first_visible_for_focus(item_num, pd->buff, pd->stay, focus_idx);
-    uint16_t focus_in_view = focus_idx - first_visible;
-    int16_t focus_y = calc_focus_y(top_y, focus_in_view, pd->item_stride);
+    eui_int16_t top_y = pd->title_h + ESGUI_TITLE_LINE_OFFSET;
+    eui_uint16_t first_visible = calc_first_visible_for_focus(item_num, pd->buff, pd->stay, focus_idx);
+    eui_uint16_t focus_in_view = focus_idx - first_visible;
+    eui_int16_t focus_y = calc_focus_y(top_y, focus_in_view, pd->item_stride);
 
     if (item_num <= pd->buff) {
         /* 条目少，全部可见，只移动焦点框 */
@@ -779,13 +779,13 @@ void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old
         start_focus_box_anim(page, focus_w, focus_y, 400);
     } else if (focus_idx < item_num - (pd->buff / 2)) {
         /* 焦点在中间区域，列表整体滚动，焦点框位置不变（相对屏幕） */
-        int16_t list_y = calc_list_y(top_y, first_visible, pd->item_stride);
+        eui_int16_t list_y = calc_list_y(top_y, first_visible, pd->item_stride);
         start_item_scroll_anim(page, list_y, 230);
         start_focus_box_anim(page, focus_w, focus_y, 400);
     } else {
         /* 焦点在底部区域，直接修正 items[0].y，避免回退后整体偏移 */
-        uint16_t first_visible = calc_first_visible_for_focus(item_num, pd->buff, pd->stay, focus_idx);
-        int16_t list_y = calc_list_y(top_y, first_visible, pd->item_stride);
+        first_visible = calc_first_visible_for_focus(item_num, pd->buff, pd->stay, focus_idx);
+        eui_int16_t list_y = calc_list_y(top_y, first_visible, pd->item_stride);
         page->items[0].y = list_y;
         start_focus_box_anim(page, focus_w, focus_y, 400);
     }
@@ -795,7 +795,7 @@ void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old
     pd->flags &= ~FLAG_LONG_TEXT_ANIM;
     anim_stop_all(&pd->long_text_x);
 
-    uint16_t permille = calc_progress_permille(focus_idx, item_num);
+    eui_uint16_t permille = calc_progress_permille(focus_idx, item_num);
     start_progress_bar_anim(page, permille, 300);
 
     /* Pop 恢复后（old == new 来自 ExecPendingPop）启动百叶窗淡入 */
@@ -814,13 +814,13 @@ void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old
  */
 ESGUI_MenuAction_T esgui_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e)
 {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 
     /* 过渡动画期间屏蔽按键，防止长按重复触发 Pop */
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
-    if (pd && pd->trans_active) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (pd && pd->trans_active) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 
-    uint16_t old_focus_idx = page->focus_idx;
+    eui_uint16_t old_focus_idx = page->focus_idx;
     switch (e) {
         case EVT_KEY_UP:
         case EVT_KEY_RIGHT:
@@ -835,19 +835,19 @@ ESGUI_MenuAction_T esgui_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Even
             if (page->items[page->focus_idx].on_enter) {
                 return page->items[page->focus_idx].on_enter(page,page->items[page->focus_idx].arg);
             }
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_POP_PAGE, NULL};
+            return (ESGUI_MenuAction_T){ACT_POP_PAGE, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
     if (old_focus_idx != page->focus_idx) {
         if (page->vtbl->on_focus_change) {
             page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
         }
-        return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -862,15 +862,15 @@ ESGUI_MenuAction_T esgui_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Even
  */
 void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
 
     CanvasStripIter *c_it = (CanvasStripIter *)page->render_ctx;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = (ESGUI_DEFALT_TEXT_PAGE_DATA_T *)page->draw_data;
     const esgui_page_vtable_t *vtbl = page->vtbl;
 
-    int16_t canvas_w = canvas_get_width(c_it);
-    int16_t canvas_h = canvas_get_height(c_it);
-    int16_t max_text_w = canvas_w - ESGUI_PROGRESS_BAR_W;
+    eui_int16_t canvas_w = canvas_get_width(c_it);
+    eui_int16_t canvas_h = canvas_get_height(c_it);
+    eui_int16_t max_text_w = canvas_w - ESGUI_PROGRESS_BAR_W;
 
     /* 绘制标题和分割线 */
     if (page->title && page->title[0]) {
@@ -883,7 +883,7 @@ void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
         ESGUI_PROGRESS_BAR_W, pd->progress_bar_permille, ESGUI_WIDGET_PROGBAR_DOWN);
 
     /* 计算可见条目范围 */
-    uint16_t start, end;
+    eui_uint16_t start, end;
     calc_visible_range(page->item_num, pd->buff, pd->stay, page->focus_idx, &start, &end);
 
     /* 压入列表裁剪区，防止文本画出列表区域 */
@@ -895,43 +895,43 @@ void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
     };
     canvas_clip_push(c_it->canvas, &clip);
 
-    int16_t list_base_y = page->items[0].y;
-    uint16_t stride = pd->item_stride;
-    uint16_t focus_idx = page->focus_idx;
-    bool has_special = (vtbl->special_item_draw != NULL);
+    eui_int16_t list_base_y = page->items[0].y;
+    eui_uint16_t stride = pd->item_stride;
+    eui_uint16_t focus_idx = page->focus_idx;
+    bool has_special = (vtbl->special_item_draw != ESGUI_NULL);
 
     /* 逐条绘制可见条目 */
-    int32_t item_y_acc = (int32_t)list_base_y + (int32_t)start * (int32_t)stride;
-    for (uint16_t i = start; i <= end; i++, item_y_acc += stride) {
-        int16_t item_y = (int16_t)item_y_acc;
+    eui_int32_t item_y_acc = (eui_int32_t)list_base_y + (eui_int32_t)start * (eui_int32_t)stride;
+    for (eui_uint16_t i = start; i <= end; i++, item_y_acc += stride) {
+        eui_int16_t item_y = (eui_int16_t)item_y_acc;
         page->items[i].y = item_y;
 
-        uint16_t need_len = ESGUI_PROGRESS_BAR_W;
+        eui_uint16_t need_len = ESGUI_PROGRESS_BAR_W;
         if (has_special) {
             need_len += vtbl->special_item_draw(page, i);
         }
-        int16_t item_max_w = canvas_w - (int16_t)need_len;
+        eui_int16_t item_max_w = canvas_w - (eui_int16_t)need_len;
 
         if (i == focus_idx && (pd->flags & FLAG_FOCUS_LONG_TEXT)) {
             /* 长文本焦点条目：绘制两段文本实现环形滚动效果 */
-            uint16_t cached_text_len = pd->text_len;
-            int16_t long_text_x = pd->long_text_x;
+            eui_uint16_t cached_text_len = pd->text_len;
+            eui_int16_t long_text_x = pd->long_text_x;
 
-            int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
-            int16_t w1 = item_max_w + abs_x - ESGUI_TEXT_MARGIN_X;
-            if (w1 > (int16_t)cached_text_len) w1 = (int16_t)cached_text_len;
+            eui_int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
+            eui_int16_t w1 = item_max_w + abs_x - ESGUI_TEXT_MARGIN_X;
+            if (w1 > (eui_int16_t)cached_text_len) w1 = (eui_int16_t)cached_text_len;
             if (w1 < 0) w1 = 0;
 
             eui_draw_text_clip(c_it->canvas, long_text_x, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w1);
 
-            int32_t text_plus_x = (int32_t)cached_text_len + (int32_t)long_text_x;
-            int16_t text_area_right = canvas_w - (int16_t)need_len;
-            int16_t remain = text_area_right - (int16_t)text_plus_x;
+            eui_int32_t text_plus_x = (eui_int32_t)cached_text_len + (eui_int32_t)long_text_x;
+            eui_int16_t text_area_right = canvas_w - (eui_int16_t)need_len;
+            eui_int16_t remain = text_area_right - (eui_int16_t)text_plus_x;
             if (remain >= ESGUI_LONG_TEXT_GAP) {
-                int16_t X2 = long_text_x + (int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
-                int16_t w2 = text_area_right - X2;
-                if (w2 > (int16_t)cached_text_len) w2 = (int16_t)cached_text_len;
+                eui_int16_t X2 = long_text_x + (eui_int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
+                eui_int16_t w2 = text_area_right - X2;
+                if (w2 > (eui_int16_t)cached_text_len) w2 = (eui_int16_t)cached_text_len;
                 if (w2 < 0) w2 = 0;
                 eui_draw_text_clip(c_it->canvas, X2, item_y,
                     &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w2);
@@ -943,8 +943,8 @@ void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
             }
         } else {
             /* 普通条目：直接绘制，按纯文本宽度裁剪 */
-            uint16_t pure_text_w = get_pure_text_width(page->items[i].label);
-            int16_t draw_max_w = (item_max_w < (int16_t)pure_text_w) ? item_max_w : (int16_t)pure_text_w;
+            eui_uint16_t pure_text_w = get_pure_text_width(page->items[i].label);
+            eui_int16_t draw_max_w = (item_max_w < (eui_int16_t)pure_text_w) ? item_max_w : (eui_int16_t)pure_text_w;
             if (draw_max_w < 0) draw_max_w = 0;
             eui_draw_text_clip(c_it->canvas, ESGUI_TEXT_MARGIN_X, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, (int)draw_max_w);
@@ -955,14 +955,14 @@ void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
 
     /* 绘制焦点框 */
     ESGUI_WidgetTextFocusBox(c_it->canvas, 0, pd->focus_box_y,
-        pd->font_height, (uint8_t)pd->focus_box_w);
+        pd->font_height, (eui_uint8_t)pd->focus_box_w);
 
     /* 页面切换过渡动画遮罩 */
     if (pd->trans_active) {
 #if ESGUI_PAGE_TRANSITION_TYPE == 0
-        canvas_apply_transition_mask(c_it->canvas, (uint8_t)pd->trans_count);
+        canvas_apply_transition_mask(c_it->canvas, (eui_uint8_t)pd->trans_count);
 #elif ESGUI_PAGE_TRANSITION_TYPE == 1
-        canvas_apply_zoom_mask(c_it->canvas, (uint8_t)pd->trans_count);
+        canvas_apply_zoom_mask(c_it->canvas, (eui_uint8_t)pd->trans_count);
 #endif
     }
 }
@@ -975,7 +975,7 @@ void esgui_text_menu_defalt_on_draw(ESGUI_MenuPage_T *page)
  *        ACT_POP_PAGE：启动百叶窗退出动画（must_complete 阻塞真正 Pop）
  */
 void esgui_text_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL) return;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
     switch (action->act) {
         case ACT_PUSH_PAGE:
@@ -1018,21 +1018,21 @@ static const esgui_page_vtable_t s_default_text_vtable = {
  * @brief 创建默认文本菜单页面
  * @param page      页面结构体指针（由调用者分配）
  * @param items     条目数组指针
- * @param title     页面标题（可为 NULL 或空字符串）
+ * @param title     页面标题（可为 ESGUI_NULL 或空字符串）
  * @param item_num  条目数量
  * @note  清零页面结构体，绑定默认虚函数表，设置条目和标题。
  *        实际的 on_create 在首次渲染时由 ESGUI_Tick 调用。
  */
 void ESGUI_DefaltTextMenuCreate(ESGUI_MenuPage_T *page,
                                 ESGUI_MenuItem_T *items, const char *title,
-                                size_t item_num)
+                                eui_uint32_t item_num)
 {
-    if (page == NULL || items == NULL || item_num == 0) return;
+    if (page == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(page, 0, sizeof(ESGUI_MenuPage_T));
     page->vtbl      = &s_default_text_vtable;
     page->items     = items;
     page->title     = title;
-    page->item_num  = (uint16_t)item_num;
+    page->item_num  = (eui_uint16_t)item_num;
 }
 #endif /* ESGUI_ENABLE_TEXT_MENU */
 
@@ -1049,7 +1049,7 @@ void ESGUI_DefaltTextMenuCreate(ESGUI_MenuPage_T *page,
  * @return 相对 X 坐标（像素）
  * @note  items[0] 的相对坐标恒为 0，后续条目累加前一张图片宽度 + 间距
  */
-static int16_t bmp_item_rel_x(ESGUI_MenuPage_T *page, uint16_t idx) {
+static eui_int16_t bmp_item_rel_x(ESGUI_MenuPage_T *page, eui_uint16_t idx) {
     return (idx == 0) ? 0 : page->items[idx].x;
 }
 #endif
@@ -1060,22 +1060,22 @@ static int16_t bmp_item_rel_x(ESGUI_MenuPage_T *page, uint16_t idx) {
 /* ---------- 5.1 BMP 菜单静态内存池 ---------- */
 
 static ESGUI_DEFAULT_BMP_MENU_DAT s_bmp_page_data_pool[BMP_PAGE_DATA_POOL_SIZE];
-static uint8_t s_bmp_page_data_alloc_map[BMP_PAGE_DATA_POOL_SIZE] = {0};
+static eui_uint8_t s_bmp_page_data_alloc_map[BMP_PAGE_DATA_POOL_SIZE] = {0};
 
 /**
  * @brief 从静态内存池分配一个 BMP 菜单页面数据实例
- * @return 成功返回指针，失败返回 NULL
+ * @return 成功返回指针，失败返回 ESGUI_NULL
  */
 static ESGUI_DEFAULT_BMP_MENU_DAT *bmp_page_data_alloc(void)
 {
-    for (uint8_t i = 0; i < BMP_PAGE_DATA_POOL_SIZE; i++) {
+    for (eui_uint8_t i = 0; i < BMP_PAGE_DATA_POOL_SIZE; i++) {
         if (s_bmp_page_data_alloc_map[i] == 0) {
             s_bmp_page_data_alloc_map[i] = 1;
             memset(&s_bmp_page_data_pool[i], 0, sizeof(ESGUI_DEFAULT_BMP_MENU_DAT));
             return &s_bmp_page_data_pool[i];
         }
     }
-    return NULL;
+    return ESGUI_NULL;
 }
 
 /**
@@ -1084,7 +1084,7 @@ static ESGUI_DEFAULT_BMP_MENU_DAT *bmp_page_data_alloc(void)
  */
 static void bmp_page_data_free(ESGUI_DEFAULT_BMP_MENU_DAT *p)
 {
-    if (p == NULL) return;
+    if (p == ESGUI_NULL) return;
     int idx = (int)(p - s_bmp_page_data_pool);
     if (idx >= 0 && idx < BMP_PAGE_DATA_POOL_SIZE) {
         s_bmp_page_data_alloc_map[idx] = 0;
@@ -1104,38 +1104,38 @@ static void bmp_page_data_free(ESGUI_DEFAULT_BMP_MENU_DAT *p)
  *        - 所有图片水平排列，items[i].x 存储相对坐标
  */
 void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
-    if (page == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = bmp_page_data_alloc();
-    if (dat == NULL) return;
+    if (dat == ESGUI_NULL) return;
     page->draw_data = dat;
     CanvasStripIter *c_it = page->render_ctx;
-    uint16_t canvas_w = canvas_get_width(c_it);
-    uint16_t canvas_h = canvas_get_height(c_it);
-    dat->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
     dat->progress_bar_h = ESGUI_PROGRESS_BAR_W;
     if (dat->progress_bar_h < 2) dat->progress_bar_h = 3;
-    uint16_t top_margin = dat->progress_bar_h + 4;
+    eui_uint16_t top_margin = dat->progress_bar_h + 4;
     dat->label_y = canvas_h - dat->font_height - 2;
     dat->label_anim_y = dat->label_y;
-    uint16_t max_bmp_h = 0;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_uint16_t max_bmp_h = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
     }
-    uint16_t separator_y = dat->label_y - 2;
-    uint16_t mid_h = (separator_y > top_margin) ? (separator_y - top_margin) : 0;
+    eui_uint16_t separator_y = dat->label_y - 2;
+    eui_uint16_t mid_h = (separator_y > top_margin) ? (separator_y - top_margin) : 0;
     dat->bmp_y = top_margin + (mid_h > max_bmp_h ? (mid_h - max_bmp_h) / 2 : 0);
     page->items[0].x = 0;
-    int16_t rel_x = 0;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_int16_t rel_x = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (bmp) {
             page->items[i].y = dat->bmp_y + (max_bmp_h - bmp->h) / 2;
         } else {
             page->items[i].y = dat->bmp_y;
         }
         if (i > 0) {
-            Bitmap *prev_bmp = page->items[i - 1].icon;
+            const Bitmap *prev_bmp = page->items[i - 1].icon;
             if (prev_bmp) rel_x += prev_bmp->w + ESGUI_BMP_ITEM_GAP;
             page->items[i].x = rel_x;
         }
@@ -1160,9 +1160,9 @@ void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
  * @note  停止所有关联动画，释放内存池，清除 render_ctx
  */
 void esgui_bmp_menu_defalt_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         anim_stop_all(&page->items[0].x);
         anim_stop_all(&dat->progress_bar_per);
         anim_stop_all(&dat->line_len);
@@ -1170,9 +1170,9 @@ void esgui_bmp_menu_defalt_on_destroy(ESGUI_MenuPage_T *page) {
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->trans_count);  /* 停止过渡动画 */
         bmp_page_data_free(dat);
-        page->draw_data = NULL;
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 
@@ -1185,7 +1185,7 @@ void esgui_bmp_menu_defalt_on_destroy(ESGUI_MenuPage_T *page) {
 static void bmp_trans_anim_ready_cb(struct anim_t *a) {
     if (!a || !a->var) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = (ESGUI_DEFAULT_BMP_MENU_DAT *)
-        ((uint8_t *)a->var - offsetof(ESGUI_DEFAULT_BMP_MENU_DAT, trans_count));
+        ((eui_uint8_t *)a->var - offsetof(ESGUI_DEFAULT_BMP_MENU_DAT, trans_count));
     dat->trans_active = 0;
 }
 
@@ -1195,7 +1195,7 @@ static void bmp_trans_anim_ready_cb(struct anim_t *a) {
  */
 static void start_bmp_page_transition_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     if (dat->trans_active) return;
 
@@ -1219,7 +1219,7 @@ static void start_bmp_page_transition_anim(ESGUI_MenuPage_T *page)
  */
 static void start_bmp_page_exit_anim(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     if (dat->trans_active) return;
 
@@ -1249,13 +1249,13 @@ static void start_bmp_page_exit_anim(ESGUI_MenuPage_T *page)
  */
 ESGUI_MenuAction_T esgui_bmp_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e)
 {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 
     /* 过渡动画期间屏蔽按键 */
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
-    if (dat && dat->trans_active) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (dat && dat->trans_active) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 
-    uint16_t old_focus_idx = page->focus_idx;
+    eui_uint16_t old_focus_idx = page->focus_idx;
     switch (e) {
         case EVT_KEY_UP:
         case EVT_KEY_RIGHT:
@@ -1270,19 +1270,19 @@ ESGUI_MenuAction_T esgui_bmp_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Event
             if (page->items[page->focus_idx].on_enter) {
                 return page->items[page->focus_idx].on_enter(page, page->items[page->focus_idx].arg);
             }
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_POP_PAGE, NULL};
+            return (ESGUI_MenuAction_T){ACT_POP_PAGE, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
     if (old_focus_idx != page->focus_idx) {
         if (page->vtbl->on_focus_change) {
             page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
         }
-        return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -1299,19 +1299,19 @@ ESGUI_MenuAction_T esgui_bmp_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Event
  *        6. 启动标签从屏幕底部滑入动画
  *        7. 若 old_idx == new_idx（Pop 恢复），启动百叶窗淡入
  */
-void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx) {
+void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
     (void)old_idx;
     (void)new_idx;
-    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
-    uint16_t canvas_w = canvas_get_width(c_it);
-    uint16_t canvas_h = canvas_get_height(c_it);
-    uint16_t focus_idx = page->focus_idx;
-    int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-    Bitmap *focus_bmp = page->items[focus_idx].icon;
-    int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
-    int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+    const Bitmap *focus_bmp = page->items[focus_idx].icon;
+    eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
+    eui_int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
     anim_t anim = {0};
     anim.var       = &page->items[0].x;
     anim.start     = page->items[0].x;
@@ -1320,7 +1320,7 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_
     anim.duration  = 300;
     anim.path_type = ANIM_PATH_EASE_OUT;
     anim_start(&anim);
-    uint16_t target_per = (uint16_t)(((uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
+    eui_uint16_t target_per = (eui_uint16_t)(((eui_uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
     if (target_per > 1000) target_per = 1000;
     anim_t anim_p = {0};
     anim_p.var       = &dat->progress_bar_per;
@@ -1331,13 +1331,13 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_
     anim_p.path_type = ANIM_PATH_EASE_OUT;
     anim_start(&anim_p);
     anim_stop_all(&dat->box_permille);
-    int32_t delta_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
-    int32_t delta_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
-    uint16_t current_w = (uint16_t)((int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
-    uint16_t current_h = (uint16_t)((int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
-    Bitmap *new_bmp = page->items[focus_idx].icon;
-    uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
-    uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
+    eui_int32_t delta_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+    eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+    eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
+    eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
+    const Bitmap *new_bmp = page->items[focus_idx].icon;
+    eui_uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
+    eui_uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
     dat->box_start_w  = current_w;
     dat->box_start_h  = current_h;
     dat->box_target_w = new_w;
@@ -1354,8 +1354,8 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_
     anim_stop_all(&dat->label_anim_y);
     anim_t anim_label = {0};
     anim_label.var       = &dat->label_anim_y;
-    anim_label.start     = (int16_t)canvas_h;
-    anim_label.end       = (int16_t)dat->label_y;
+    anim_label.start     = (eui_int16_t)canvas_h;
+    anim_label.end       = (eui_int16_t)dat->label_y;
     anim_label.exec_cb   = anim_cb_int16;
     anim_label.duration  = 600;
     anim_label.path_type = ANIM_PATH_EASE_OUT;
@@ -1376,20 +1376,20 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_
  *        ACT_POP_PAGE：启动百叶窗退出动画
  */
 void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
-    uint16_t canvas_w = canvas_get_width(c_it);
-    uint16_t canvas_h = canvas_get_height(c_it);
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
     if (action->act == ACT_PUSH_PAGE) {
         if (dat->first_push) {
             dat->first_push = 0;
-            uint16_t focus_idx = page->focus_idx;
-            int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-            Bitmap *focus_bmp = page->items[focus_idx].icon;
-            int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
-            int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
-            int16_t start_base = canvas_w;
+            eui_uint16_t focus_idx = page->focus_idx;
+            eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+            const Bitmap *focus_bmp = page->items[focus_idx].icon;
+            eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
+            eui_int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
+            eui_int16_t start_base = canvas_w;
             page->items[0].x = start_base;
             anim_t anim = {0};
             anim.var       = &page->items[0].x;
@@ -1399,7 +1399,7 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
             anim.duration  = 400;
             anim.path_type = ANIM_PATH_EASE_OUT;
             anim_start(&anim);
-            uint16_t target_per = (uint16_t)(((uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
+            eui_uint16_t target_per = (eui_uint16_t)(((eui_uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
             if (target_per > 1000) target_per = 1000;
             dat->progress_bar_per = 0;
             anim_t anim_p = {0};
@@ -1419,7 +1419,7 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
             anim_line.duration  = 1000;
             anim_line.path_type = ANIM_PATH_EASE_OUT;
             anim_start(&anim_line);
-            Bitmap *new_bmp = page->items[focus_idx].icon;
+            const Bitmap *new_bmp = page->items[focus_idx].icon;
             dat->box_start_w  = 0;
             dat->box_start_h  = 0;
             dat->box_target_w = new_bmp ? new_bmp->w + 4 : 0;
@@ -1434,11 +1434,11 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
             anim_box.path_type = ANIM_PATH_EASE_OUT;
             anim_start(&anim_box);
             anim_stop_all(&dat->label_anim_y);
-            dat->label_anim_y = (int16_t)canvas_h;
+            dat->label_anim_y = (eui_int16_t)canvas_h;
             anim_t anim_label = {0};
             anim_label.var       = &dat->label_anim_y;
-            anim_label.start     = (int16_t)canvas_h;
-            anim_label.end       = (int16_t)dat->label_y;
+            anim_label.start     = (eui_int16_t)canvas_h;
+            anim_label.end       = (eui_int16_t)dat->label_y;
             anim_label.exec_cb   = anim_cb_int16;
             anim_label.duration  = 400;
             anim_label.path_type = ANIM_PATH_EASE_OUT;
@@ -1463,10 +1463,10 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
  *        6. 页面切换过渡遮罩
  */
 void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
-    uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
     if (page->item_num > 0) {
         ESGUI_WidgetProgrssBarChangeLenPermille(c_it->canvas,
             2, 2, dat->progress_bar_h, canvas_w - 4,
@@ -1477,24 +1477,24 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
         (int)(canvas_w - 1), (int)(dat->label_y - 4)
     };
     canvas_clip_push(c_it->canvas, &bmp_clip);
-    int16_t base_x = page->items[0].x;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_int16_t base_x = page->items[0].x;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (!bmp) continue;
-        int16_t rel_x = bmp_item_rel_x(page, i);
-        int16_t x = base_x + rel_x;
-        int16_t y = page->items[i].y;
-        int16_t w = bmp->w;
-        int16_t h = bmp->h;
-        if (x + w < 0 || x > (int16_t)canvas_w) continue;
+        eui_int16_t rel_x = bmp_item_rel_x(page, i);
+        eui_int16_t x = base_x + rel_x;
+        eui_int16_t y = page->items[i].y;
+        eui_int16_t w = bmp->w;
+        eui_int16_t h = bmp->h;
+        if (x + w < 0 || x > (eui_int16_t)canvas_w) continue;
         eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
         if (i == page->focus_idx) {
-            int32_t d_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
-            int32_t d_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
-            uint16_t cur_w = (uint16_t)((int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
-            uint16_t cur_h = (uint16_t)((int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
+            eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+            eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+            eui_uint16_t cur_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
+            eui_uint16_t cur_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
             int fx = ((int)canvas_w - (int)cur_w) / 2;
-            Bitmap *focus_bmp = page->items[i].icon;
+            const Bitmap *focus_bmp = page->items[i].icon;
             int center_y = (int)page->items[i].y + (focus_bmp ? focus_bmp->h : 0) / 2;
             int fy = center_y - (int)cur_h / 2;
             ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
@@ -1502,7 +1502,7 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
     }
     canvas_clip_pop(c_it->canvas);
     if (dat->line_len > 0) {
-        uint16_t sep_y = dat->label_y - 2;
+        eui_uint16_t sep_y = dat->label_y - 2;
         if (sep_y > dat->progress_bar_h + 2) {
             eui_draw_hline(c_it->canvas, 0, dat->line_len, sep_y, EUI_MODE_SET);
         }
@@ -1534,9 +1534,9 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
     /* 页面切换过渡动画遮罩 */
     if (dat->trans_active) {
 #if ESGUI_PAGE_TRANSITION_TYPE == 0
-        canvas_apply_transition_mask(c_it->canvas, (uint8_t)dat->trans_count);
+        canvas_apply_transition_mask(c_it->canvas, (eui_uint8_t)dat->trans_count);
 #elif ESGUI_PAGE_TRANSITION_TYPE == 1
-        canvas_apply_zoom_mask(c_it->canvas, (uint8_t)dat->trans_count);
+        canvas_apply_zoom_mask(c_it->canvas, (eui_uint8_t)dat->trans_count);
 #endif
     }
 }
@@ -1548,8 +1548,8 @@ static const esgui_page_vtable_t esgui_default_bmp_menu_vtable = {
     .on_create                = esgui_bmp_menu_defalt_on_create,
     .on_destroy               = esgui_bmp_menu_defalt_on_destroy,
     .on_draw                  = esgui_bmp_menu_defalt_on_draw,
-    .special_item_draw        = NULL,
-    .get_special_item_draw_w  = NULL,
+    .special_item_draw        = ESGUI_NULL,
+    .get_special_item_draw_w  = ESGUI_NULL,
     .on_input                 = esgui_bmp_defalt_on_input,
     .on_focus_change          = esgui_bmp_menu_defalt_on_focus_change,
     .on_page_chenge           = esgui_bmp_menu_default_on_page_change,
@@ -1563,12 +1563,12 @@ static const esgui_page_vtable_t esgui_default_bmp_menu_vtable = {
  * @param item_num  条目数量
  */
 void ESGUI_DefaultBMPMenuCreate(ESGUI_MenuPage_T *page, const char *title,
-                                ESGUI_MenuItem_T *items, size_t item_num) {
-    if (page == NULL || items == NULL || item_num == 0) return;
+                                ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (page == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(page, 0, sizeof(ESGUI_MenuPage_T));
     page->items    = items;
-    page->title    = (title == NULL) ? "" : title;
-    page->item_num = (uint16_t)item_num;
+    page->title    = (title == ESGUI_NULL) ? "" : title;
+    page->item_num = (eui_uint16_t)item_num;
     page->vtbl     = &esgui_default_bmp_menu_vtable;
 }
 #endif /* ESGUI_ENABLE_BMP_MENU */
@@ -1592,8 +1592,8 @@ void ESGUI_DefaultBMPMenuCreate(ESGUI_MenuPage_T *page, const char *title,
  * @note  设置 must_complete=1，确保动画完成前页面控制器不销毁弹窗。
  *        用于弹窗的入场（从屏幕上方滑入）和退场（滑出屏幕上方）。
  */
-static void start_popwindow_window_anim(ESGUI_PopWindow_T *window,int y_sta,int y_end,uint32_t duration,anim_path_type_t path_type) {
-    if (window == NULL) return;
+static void start_popwindow_window_anim(ESGUI_PopWindow_T *window,int y_sta,int y_end,eui_uint32_t duration,anim_path_type_t path_type) {
+    if (window == ESGUI_NULL) return;
     anim_t anim = {0};
     anim.var       = &window->window_y;
     anim.start     = y_sta;
@@ -1615,11 +1615,11 @@ static void start_popwindow_window_anim(ESGUI_PopWindow_T *window,int y_sta,int 
  * @brief 消息弹窗私有数据
  */
 typedef struct esgui_default_message_window_dat {
-    uint16_t text_len;      /**< OK 按钮文本宽度 */
-    uint16_t font_height;   /**< 字体高度 */
-    uint8_t button_en;      /**< 是否显示 OK 按钮 */
-    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
-    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
+    eui_uint16_t text_len;      /**< OK 按钮文本宽度 */
+    eui_uint16_t font_height;   /**< 字体高度 */
+    eui_uint8_t button_en;      /**< 是否显示 OK 按钮 */
+    eui_uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    eui_int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_MESSAGE_WINDOW_DAT;
 
 /**
@@ -1628,11 +1628,11 @@ typedef struct esgui_default_message_window_dat {
  * @note  计算窗口水平居中位置，测量 OK 按钮文本宽度。
  */
 void esgui_default_message_popwindow_on_create(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = (ESGUI_DEFAULT_MESSAGE_WINDOW_DAT*)window->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     data->font_height = eui_get_text_height(&ESGUI_DEFAULT_FONT,"0");
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
     data->text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT,"OK");
@@ -1643,13 +1643,13 @@ void esgui_default_message_popwindow_on_create(ESGUI_MenuPage_T *page) {
  * @param page 页面指针
  */
 void esgui_default_message_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
-    if (window->draw_data != NULL){
-        popup_data_free(window->draw_data);
-        window->draw_data = NULL;
+    if (window->draw_data != ESGUI_NULL){
+        popup_data_free();
+        window->draw_data = ESGUI_NULL;
     }
-    window->render_ctx = NULL;
+    window->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -1658,11 +1658,11 @@ void esgui_default_message_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
  * @note  绘制圆角矩形边框、标题文本、可选的 OK 按钮和焦点框。
  */
 void esgui_default_message_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = window->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     Area a = {window->window_x, window->window_y,window->window_x+window->window_w,window->window_y+window->window_h};
     canvas_clip_push(c_it->canvas,&a);
     eui_draw_round_rect_box(c_it->canvas,window->window_x, window->window_y,window->window_x+window->window_w,window->window_y+window->window_h,5,EUI_MODE_SET);
@@ -1684,15 +1684,15 @@ void esgui_default_message_popwindow_on_draw(ESGUI_MenuPage_T *page) {
  * @return ACT_CLOSE_POPUP（任何按键都关闭弹窗）
  */
 ESGUI_MenuAction_T esgui_default_message_popwindow_on_input(ESGUI_MenuPage_T *page,ESGUI_EventCode_t e) {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     switch (e) {
         case EVT_KEY_OK:
         case EVT_CLICKED:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
 }
 
@@ -1704,7 +1704,7 @@ ESGUI_MenuAction_T esgui_default_message_popwindow_on_input(ESGUI_MenuPage_T *pa
  *        CLOSE：向屏幕上方 EaseInOut 滑出
  */
 void esgui_default_message_popwindow_on_page_change(ESGUI_MenuPage_T *page,ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = window->render_ctx;
     switch (action->act) {
@@ -1726,10 +1726,10 @@ static const esgui_page_vtable_t message_popwindow_vtable = {
     .on_create = esgui_default_message_popwindow_on_create,
     .on_destroy = esgui_default_message_popwindow_on_destroy,
     .on_draw = esgui_default_message_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_message_popwindow_on_input,
-    .on_focus_change = NULL,
+    .on_focus_change = ESGUI_NULL,
     .on_page_chenge = esgui_default_message_popwindow_on_page_change,
 };
 
@@ -1741,15 +1741,15 @@ static const esgui_page_vtable_t message_popwindow_vtable = {
  * @param window_h   弹窗高度
  * @param button_en  是否显示 OK 按钮
  */
-void ESGUI_DefaultMessagePopWindowCreate(ESGUI_PopWindow_T *window,const char* message,uint16_t window_w,uint16_t window_h,bool button_en) {
-    if (window == NULL) return;
+void ESGUI_DefaultMessagePopWindowCreate(ESGUI_PopWindow_T *window,const char* message,eui_uint16_t window_w,eui_uint16_t window_h,bool button_en) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &message_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->button_en = button_en;
     }
     window->draw_data = dat;
@@ -1773,15 +1773,15 @@ ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
  * @note  当标题长度超过弹窗宽度减去 2*ESGUI_POPUP_TITLE_SCROLL_MARGIN 时启动。
  *        使用线性曲线，无限循环，延迟 400ms 后开始。
  */
-static void start_popup_title_scroll_anim(ESGUI_PopWindow_T *window, int16_t *title_scroll_x, uint16_t title_len)
+static void start_popup_title_scroll_anim(ESGUI_PopWindow_T *window, eui_int16_t *title_scroll_x, eui_uint16_t title_len)
 {
-    if (window == NULL || title_scroll_x == NULL) return;
-    int16_t max_w = (int16_t)window->window_w - 2 * (int16_t)ESGUI_POPUP_TITLE_SCROLL_MARGIN;
-    if (max_w <= 0 || (int16_t)title_len <= max_w) return;
+    if (window == ESGUI_NULL || title_scroll_x == ESGUI_NULL) return;
+    eui_int16_t max_w = (eui_int16_t)window->window_w - 2 * (eui_int16_t)ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    if (max_w <= 0 || (eui_int16_t)title_len <= max_w) return;
     anim_t anim = {0};
     anim.var        = title_scroll_x;
     anim.start      = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
-    anim.end        = -(int32_t)title_len - (int32_t)ESGUI_LONG_TEXT_GAP;
+    anim.end        = -(eui_int32_t)title_len - (eui_int32_t)ESGUI_LONG_TEXT_GAP;
     anim.exec_cb    = anim_cb_int16;
     anim.duration   = 4500;
     anim.path_type  = ANIM_PATH_LINEAR;
@@ -1800,16 +1800,16 @@ static void start_popup_title_scroll_anim(ESGUI_PopWindow_T *window, int16_t *ti
  * @note  在弹窗裁剪区内绘制，支持超长标题循环滚动。
  */
 static void draw_popup_scrolling_title(CanvasStripIter *c_it, ESGUI_PopWindow_T *window,
-    uint16_t title_len, int16_t title_scroll_x)
+    eui_uint16_t title_len, eui_int16_t title_scroll_x)
 {
-    if (c_it == NULL || window == NULL || !window->title || !window->title[0]) return;
-    int16_t margin = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
-    int16_t y = window->window_y + margin;
-    int16_t max_w = (int16_t)window->window_w - 2 * margin;
+    if (c_it == ESGUI_NULL || window == ESGUI_NULL || !window->title || !window->title[0]) return;
+    eui_int16_t margin = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
+    eui_int16_t y = window->window_y + margin;
+    eui_int16_t max_w = (eui_int16_t)window->window_w - 2 * margin;
 
     if (max_w <= 0) return;
 
-    if ((int16_t)title_len <= max_w) {
+    if ((eui_int16_t)title_len <= max_w) {
         /* 标题不需要滚动：左对齐绘制 */
         eui_draw_text_clip(c_it->canvas,
             window->window_x + margin, y,
@@ -1818,22 +1818,22 @@ static void draw_popup_scrolling_title(CanvasStripIter *c_it, ESGUI_PopWindow_T 
     }
 
     /* 第一段文本 */
-    int16_t abs_x = (title_scroll_x < 0) ? -title_scroll_x : title_scroll_x;
-    int16_t w1 = max_w + abs_x - margin;
-    if (w1 > (int16_t)title_len) w1 = (int16_t)title_len;
+    eui_int16_t abs_x = (title_scroll_x < 0) ? -title_scroll_x : title_scroll_x;
+    eui_int16_t w1 = max_w + abs_x - margin;
+    if (w1 > (eui_int16_t)title_len) w1 = (eui_int16_t)title_len;
     if (w1 < 0) w1 = 0;
     eui_draw_text_clip(c_it->canvas,
         window->window_x + title_scroll_x, y,
         &ESGUI_DEFAULT_FONT, window->title, EUI_MODE_SET, w1);
 
     /* 第二段（循环衔接） */
-    int32_t text_plus_x = (int32_t)title_len + (int32_t)title_scroll_x;
-    int16_t text_area_right = (int16_t)window->window_w - margin;
-    int16_t remain = text_area_right - (int16_t)text_plus_x;
-    if (remain >= (int16_t)ESGUI_LONG_TEXT_GAP) {
-        int16_t X2 = title_scroll_x + (int16_t)title_len + (int16_t)ESGUI_LONG_TEXT_GAP + 2;
-        int16_t w2 = text_area_right - X2;
-        if (w2 > (int16_t)title_len) w2 = (int16_t)title_len;
+    eui_int32_t text_plus_x = (eui_int32_t)title_len + (eui_int32_t)title_scroll_x;
+    eui_int16_t text_area_right = (eui_int16_t)window->window_w - margin;
+    eui_int16_t remain = text_area_right - (eui_int16_t)text_plus_x;
+    if (remain >= (eui_int16_t)ESGUI_LONG_TEXT_GAP) {
+        eui_int16_t X2 = title_scroll_x + (eui_int16_t)title_len + (eui_int16_t)ESGUI_LONG_TEXT_GAP + 2;
+        eui_int16_t w2 = text_area_right - X2;
+        if (w2 > (eui_int16_t)title_len) w2 = (eui_int16_t)title_len;
         if (w2 < 0) w2 = 0;
         eui_draw_text_clip(c_it->canvas,
             window->window_x + X2, y,
@@ -1858,11 +1858,11 @@ static void draw_popup_scrolling_title(CanvasStripIter *c_it, ESGUI_PopWindow_T 
  */
 void esgui_default_message_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
     esgui_default_message_popwindow_on_create(page);
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = window->draw_data;
-    if (data == NULL || !window->title || !window->title[0]) return;
-    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    if (data == ESGUI_NULL || !window->title || !window->title[0]) return;
+    data->title_len = (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
     data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
     start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
 }
@@ -1872,11 +1872,11 @@ void esgui_default_message_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *pa
  * @note  使用 draw_popup_scrolling_title 替代固定文本绘制，其余与原版一致。
  */
 void esgui_default_message_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *data = window->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     Area a = {window->window_x, window->window_y, window->window_x + window->window_w, window->window_y + window->window_h};
     canvas_clip_push(c_it->canvas, &a);
     eui_draw_round_rect_box(c_it->canvas, window->window_x, window->window_y,
@@ -1896,25 +1896,25 @@ void esgui_default_message_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page
  * @note  先停止标题滚动动画，再释放弹窗数据，防止动画写入已释放内存。
  */
 void esgui_default_message_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
-    if (window->draw_data != NULL) {
+    if (window->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *dat = window->draw_data;
         anim_stop_all(&dat->title_scroll_x);
-        popup_data_free(window->draw_data);
-        window->draw_data = NULL;
+        popup_data_free();
+        window->draw_data = ESGUI_NULL;
     }
-    window->render_ctx = NULL;
+    window->render_ctx = ESGUI_NULL;
 }
 
 static const esgui_page_vtable_t message_scroll_title_popwindow_vtable = {
     .on_create = esgui_default_message_scroll_title_popwindow_on_create,
     .on_destroy = esgui_default_message_scroll_title_popwindow_on_destroy,
     .on_draw = esgui_default_message_scroll_title_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_message_popwindow_on_input,
-    .on_focus_change = NULL,
+    .on_focus_change = ESGUI_NULL,
     .on_page_chenge = esgui_default_message_popwindow_on_page_change,
 };
 
@@ -1922,15 +1922,15 @@ static const esgui_page_vtable_t message_scroll_title_popwindow_vtable = {
  * @brief 创建消息弹窗滚动标题版本
  */
 void ESGUI_DefaultMessageScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
-    uint16_t window_w, uint16_t window_h, bool button_en) {
-    if (window == NULL) return;
+    eui_uint16_t window_w, eui_uint16_t window_h, bool button_en) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &message_scroll_title_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     ESGUI_DEFAULT_MESSAGE_WINDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->button_en = button_en;
     }
     window->draw_data = dat;
@@ -1948,13 +1948,13 @@ void ESGUI_DefaultMessageScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, c
  */
 typedef struct esgui_default_bool_wondow_dat {
     bool *val;              /**< 绑定的布尔变量指针 */
-    uint16_t text1_len;     /**< OK 文本宽度 */
-    uint16_t text2_len;     /**< Cancel 文本宽度 */
-    uint16_t font_height;   /**< 字体高度 */
-    uint16_t focus_x;       /**< 焦点框当前 X 坐标 */
-    uint16_t focus_w;       /**< 焦点框当前宽度 */
-    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
-    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
+    eui_uint16_t text1_len;     /**< OK 文本宽度 */
+    eui_uint16_t text2_len;     /**< Cancel 文本宽度 */
+    eui_uint16_t font_height;   /**< 字体高度 */
+    eui_uint16_t focus_x;       /**< 焦点框当前 X 坐标 */
+    eui_uint16_t focus_w;       /**< 焦点框当前宽度 */
+    eui_uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    eui_int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_BOOL_WONDOW_DAT;
 
 /**
@@ -1964,9 +1964,9 @@ typedef struct esgui_default_bool_wondow_dat {
  * @param x        目标 X 坐标
  * @param duration 动画持续时间
  */
-static void start_popxindow_focus_box_anim(ESGUI_PopWindow_T *page, int16_t w, int16_t x, uint32_t duration)
+static void start_popxindow_focus_box_anim(ESGUI_PopWindow_T *page, eui_int16_t w, eui_int16_t x, eui_uint32_t duration)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT* data = page->draw_data;
     anim_t anim_w = {0};
     anim_t anim_x = {0};
@@ -2000,7 +2000,7 @@ static ESGUI_MenuAction_T esgui_default_bool_popwindow_on_enter(ESGUI_MenuPage_T
     if (data && data->val) {
         *data->val = (window->focus_idx == 0) ? 1 : 0;
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -2009,8 +2009,8 @@ static ESGUI_MenuAction_T esgui_default_bool_popwindow_on_enter(ESGUI_MenuPage_T
  *        实际文本在 on_create 中重新测量。
  */
 static ESGUI_MenuItem_T bool_popwindow_items[] = {
-    {0,0,"OK",NULL,esgui_default_bool_popwindow_on_enter,NULL},
-    {0,0,"Cancel ",NULL,esgui_default_bool_popwindow_on_enter,NULL},
+    {0,0,"OK",ESGUI_NULL,esgui_default_bool_popwindow_on_enter,ESGUI_NULL},
+    {0,0,"Cancel ",ESGUI_NULL,esgui_default_bool_popwindow_on_enter,ESGUI_NULL},
 };
 
 /**
@@ -2019,11 +2019,11 @@ static ESGUI_MenuItem_T bool_popwindow_items[] = {
  * @note  计算窗口居中、按钮位置、文本宽度。
  */
 void esgui_default_bool_popwindow_on_create(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = (ESGUI_DEFAULT_BOOL_WONDOW_DAT*)window->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     data->font_height = eui_get_text_height(&ESGUI_DEFAULT_FONT,"0");
     data->text1_len = eui_get_text_width(&ESGUI_DEFAULT_FONT,page->items[0].label);
     data->text2_len = eui_get_text_width(&ESGUI_DEFAULT_FONT,page->items[1].label);
@@ -2037,16 +2037,16 @@ void esgui_default_bool_popwindow_on_create(ESGUI_MenuPage_T *page) {
  * @param page 页面指针
  */
 void esgui_default_bool_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
-    if (window->draw_data != NULL){
+    if (window->draw_data != ESGUI_NULL){
         ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = window->draw_data;
         anim_stop_all(&dat->focus_w);
         anim_stop_all(&dat->focus_x);
-        popup_data_free(window->draw_data);
-        window->draw_data = NULL;
+        popup_data_free();
+        window->draw_data = ESGUI_NULL;
     }
-    window->render_ctx = NULL;
+    window->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -2057,8 +2057,8 @@ void esgui_default_bool_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
  * @note  左右切换焦点，OK 触发 on_enter 后关闭弹窗，BACK 直接关闭。
  */
 ESGUI_MenuAction_T esgui_default_bool_popwindow_on_input(ESGUI_MenuPage_T *page,ESGUI_EventCode_t e) {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
-    uint16_t old_focus_idx = page->focus_idx;
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+    eui_uint16_t old_focus_idx = page->focus_idx;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = (ESGUI_DEFAULT_BOOL_WONDOW_DAT*)page->draw_data;
     switch (e) {
         case EVT_KEY_UP:
@@ -2074,19 +2074,19 @@ ESGUI_MenuAction_T esgui_default_bool_popwindow_on_input(ESGUI_MenuPage_T *page,
             if (page->items[page->focus_idx].on_enter) {
                 page->items[page->focus_idx].on_enter(page, page->items[page->focus_idx].arg);
             }
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
     if (old_focus_idx != page->focus_idx) {
         if (page->vtbl->on_focus_change) {
             page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
         }
-        return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -2096,10 +2096,10 @@ ESGUI_MenuAction_T esgui_default_bool_popwindow_on_input(ESGUI_MenuPage_T *page,
  * @param new_idx  新焦点索引
  * @note  根据新焦点启动焦点框尺寸和位置动画。
  */
-void esgui_default_bool_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx) {
+void esgui_default_bool_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
     (void)old_idx;
     (void)new_idx;
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = (ESGUI_DEFAULT_BOOL_WONDOW_DAT*)page->draw_data;
     if (page->focus_idx) {
         start_popxindow_focus_box_anim((ESGUI_PopWindow_T*)page,data->text2_len,page->items[1].x,400);
@@ -2113,11 +2113,11 @@ void esgui_default_bool_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint16
  * @param page 页面指针
  */
 void esgui_default_bool_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
-    if (data == NULL || window->item_num < 2) return;
+    if (data == ESGUI_NULL || window->item_num < 2) return;
     window->items[0].y = window->window_y + window->window_h - 15;
     Area a = {window->window_x, window->window_y,window->window_x+window->window_w,window->window_y+window->window_h};
     canvas_clip_push(c_it->canvas,&a);
@@ -2137,7 +2137,7 @@ void esgui_default_bool_popwindow_on_draw(ESGUI_MenuPage_T *page) {
  * @param action 动作指令
  */
 void esgui_default_bool_popwindow_on_page_change(ESGUI_MenuPage_T *page,ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = window->render_ctx;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
@@ -2161,8 +2161,8 @@ static const esgui_page_vtable_t boo_popwindow_vtable = {
     .on_create = esgui_default_bool_popwindow_on_create,
     .on_destroy = esgui_default_bool_popwindow_on_destroy,
     .on_draw = esgui_default_bool_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_bool_popwindow_on_input,
     .on_focus_change = esgui_default_bool_popwindow_on_focus_change,
     .on_page_chenge = esgui_default_bool_popwindow_on_page_change,
@@ -2176,17 +2176,17 @@ static const esgui_page_vtable_t boo_popwindow_vtable = {
  * @param window_h  弹窗高度
  * @param boo_val   绑定的布尔变量指针（结果写入此处）
  */
-void ESGUI_DefaultBoolPopWindowCreate(ESGUI_PopWindow_T *window,const char* message,uint16_t window_w,uint16_t window_h,bool *boo_val) {
-    if (window == NULL) return;
+void ESGUI_DefaultBoolPopWindowCreate(ESGUI_PopWindow_T *window,const char* message,eui_uint16_t window_w,eui_uint16_t window_h,bool *boo_val) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &boo_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     window->item_num = ESGUI_ITEM_NUM_COUNT(bool_popwindow_items);
     window->items = bool_popwindow_items;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->val = boo_val;
     }
     window->draw_data = dat;
@@ -2204,11 +2204,11 @@ void ESGUI_DefaultBoolPopWindowCreate(ESGUI_PopWindow_T *window,const char* mess
  */
 void esgui_default_bool_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
     esgui_default_bool_popwindow_on_create(page);
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
-    if (data == NULL || !window->title || !window->title[0]) return;
-    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    if (data == ESGUI_NULL || !window->title || !window->title[0]) return;
+    data->title_len = (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
     data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
     start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
 }
@@ -2217,11 +2217,11 @@ void esgui_default_bool_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page)
  * @brief 布尔弹窗滚动标题版本绘制回调
  */
 void esgui_default_bool_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *data = window->draw_data;
-    if (data == NULL || window->item_num < 2) return;
+    if (data == ESGUI_NULL || window->item_num < 2) return;
     window->items[0].y = window->window_y + window->window_h - 15;
     Area a = {window->window_x, window->window_y, window->window_x + window->window_w, window->window_y + window->window_h};
     canvas_clip_push(c_it->canvas, &a);
@@ -2240,25 +2240,25 @@ void esgui_default_bool_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
  * @brief 布尔弹窗滚动标题版本销毁回调
  */
 void esgui_default_bool_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
-    if (window->draw_data != NULL) {
+    if (window->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = window->draw_data;
         anim_stop_all(&dat->title_scroll_x);
         anim_stop_all(&dat->focus_w);
         anim_stop_all(&dat->focus_x);
-        popup_data_free(window->draw_data);
-        window->draw_data = NULL;
+        popup_data_free();
+        window->draw_data = ESGUI_NULL;
     }
-    window->render_ctx = NULL;
+    window->render_ctx = ESGUI_NULL;
 }
 
 static const esgui_page_vtable_t bool_scroll_title_popwindow_vtable = {
     .on_create = esgui_default_bool_scroll_title_popwindow_on_create,
     .on_destroy = esgui_default_bool_scroll_title_popwindow_on_destroy,
     .on_draw = esgui_default_bool_scroll_title_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_bool_popwindow_on_input,
     .on_focus_change = esgui_default_bool_popwindow_on_focus_change,
     .on_page_chenge = esgui_default_bool_popwindow_on_page_change,
@@ -2268,17 +2268,17 @@ static const esgui_page_vtable_t bool_scroll_title_popwindow_vtable = {
  * @brief 创建布尔弹窗滚动标题版本
  */
 void ESGUI_DefaultBoolScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
-    uint16_t window_w, uint16_t window_h, bool *boo_val) {
-    if (window == NULL) return;
+    eui_uint16_t window_w, eui_uint16_t window_h, bool *boo_val) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &bool_scroll_title_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     window->item_num = ESGUI_ITEM_NUM_COUNT(bool_popwindow_items);
     window->items = bool_popwindow_items;
     ESGUI_DEFAULT_BOOL_WONDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->val = boo_val;
     }
     window->draw_data = dat;
@@ -2297,12 +2297,12 @@ void ESGUI_DefaultBoolScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, cons
 typedef struct {
     ESGUI_ValueDesc_T *value_desc;  /**< 值描述符指针（包含 get_permille / to_string / step） */
     int text_x;                     /**< 值文本当前 X 坐标（居中） */
-    uint16_t font_height;           /**< 字体高度 */
-    uint16_t text_len;              /**< 值文本宽度 */
-    uint16_t bar_per;               /**< 进度条千分比（0~1000） */
+    eui_uint16_t font_height;           /**< 字体高度 */
+    eui_uint16_t text_len;              /**< 值文本宽度 */
+    eui_uint16_t bar_per;               /**< 进度条千分比（0~1000） */
     char value_str[15];             /**< 值文本缓冲区 */
-    uint16_t title_len;             /**< 标题文本宽度（滚动标题用） */
-    int16_t  title_scroll_x;        /**< 标题滚动当前 X 偏移（滚动标题用） */
+    eui_uint16_t title_len;             /**< 标题文本宽度（滚动标题用） */
+    eui_int16_t  title_scroll_x;        /**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_VALUE_WINDOW_DAT;
 
 /**
@@ -2312,9 +2312,9 @@ typedef struct {
  * @param duration  动画持续时间
  * @note  先停止旧动画防止竞争，若当前值等于目标值则跳过。
  */
-static void start_value_popindow_progrss_bar_anim(ESGUI_PopWindow_T *page, uint16_t target_per, uint32_t duration)
+static void start_value_popindow_progrss_bar_anim(ESGUI_PopWindow_T *page, eui_uint16_t target_per, eui_uint32_t duration)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT* data = page->draw_data;
 
     /* 先停止旧动画，防止多动画竞争同一变量导致抖动 */
@@ -2339,14 +2339,14 @@ static void start_value_popindow_progrss_bar_anim(ESGUI_PopWindow_T *page, uint1
  * @note  初始化值文本和进度条初始值。
  */
 void esgui_default_value_popwindow_on_create(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = (ESGUI_DEFAULT_VALUE_WINDOW_DAT*)window->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     data->font_height = eui_get_text_height(&ESGUI_DEFAULT_FONT,"0");
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
-    if (data->value_desc != NULL && data->value_desc->get_permille != NULL && data->value_desc->to_string != NULL) {
+    if (data->value_desc != ESGUI_NULL && data->value_desc->get_permille != ESGUI_NULL && data->value_desc->to_string != ESGUI_NULL) {
         data->value_desc->to_string(data->value_desc->ctx,data->value_str,sizeof(data->value_str));
         data->text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT,data->value_str);
         data->bar_per = data->value_desc->get_permille(data->value_desc->ctx);
@@ -2359,14 +2359,14 @@ void esgui_default_value_popwindow_on_create(ESGUI_MenuPage_T *page) {
  * @param page 页面指针
  */
 void esgui_default_value_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
-    if (page->draw_data != NULL) {
+    if (page == ESGUI_NULL) return;
+    if (page->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = page->draw_data;
         anim_stop_all(&dat->bar_per);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -2377,7 +2377,7 @@ void esgui_default_value_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
  * @note  上下/左右调节数值（调用 value_desc->step），OK/BACK 关闭弹窗。
  */
 ESGUI_MenuAction_T esgui_default_value_popwindow_on_input(ESGUI_MenuPage_T *page,ESGUI_EventCode_t e) {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = (ESGUI_DEFAULT_VALUE_WINDOW_DAT*)page->draw_data;
     switch (e) {
         case EVT_KEY_UP:
@@ -2388,7 +2388,7 @@ ESGUI_MenuAction_T esgui_default_value_popwindow_on_input(ESGUI_MenuPage_T *page
             if (page->vtbl->on_focus_change) {
                 page->vtbl->on_focus_change(page, 0, 0);
             }
-            return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+            return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
         case EVT_KEY_DOWN:
         case EVT_KEY_LEFT:
             if (data->value_desc && data->value_desc->step) {
@@ -2397,14 +2397,14 @@ ESGUI_MenuAction_T esgui_default_value_popwindow_on_input(ESGUI_MenuPage_T *page
             if (page->vtbl->on_focus_change) {
                 page->vtbl->on_focus_change(page, 0, 0);
             }
-            return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+            return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
         case EVT_KEY_OK:
         case EVT_CLICKED:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
 }
 
@@ -2415,17 +2415,17 @@ ESGUI_MenuAction_T esgui_default_value_popwindow_on_input(ESGUI_MenuPage_T *page
  * @param new_idx  新焦点索引（未使用）
  * @note  更新值文本，重新计算居中位置，启动进度条平滑动画。
  */
-void esgui_default_value_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx) {
+void esgui_default_value_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
     (void)old_idx;
     (void)new_idx;
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = (ESGUI_DEFAULT_VALUE_WINDOW_DAT*)page->draw_data;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
 
     /* 更新文字（瞬间切换，不需要动画） */
-    if (data != NULL && data->value_desc != NULL
-        && data->value_desc->get_permille != NULL
-        && data->value_desc->to_string != NULL) {
+    if (data != ESGUI_NULL && data->value_desc != ESGUI_NULL
+        && data->value_desc->get_permille != ESGUI_NULL
+        && data->value_desc->to_string != ESGUI_NULL) {
         data->value_desc->to_string(data->value_desc->ctx, data->value_str, sizeof(data->value_str));
         data->text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, data->value_str);
         /* 注意：不再直接写 data->bar_per，由动画回调负责平滑更新 */
@@ -2433,7 +2433,7 @@ void esgui_default_value_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint1
     data->text_x = (window->window_w - data->text_len) / 2 + window->window_x;
 
     /* 启动进度条平滑动画：从当前值 → 新目标值 */
-    uint16_t target_per = 0;
+    eui_uint16_t target_per = 0;
     if (data->value_desc && data->value_desc->get_permille) {
         target_per = data->value_desc->get_permille(data->value_desc->ctx);
     }
@@ -2446,7 +2446,7 @@ void esgui_default_value_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint1
  * @param action 动作指令
  */
 void esgui_default_value_popwindow_on_page_change(ESGUI_MenuPage_T *page,ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = (ESGUI_DEFAULT_VALUE_WINDOW_DAT*)page->draw_data;
     CanvasStripIter *c_it = window->render_ctx;
@@ -2469,7 +2469,7 @@ void esgui_default_value_popwindow_on_page_change(ESGUI_MenuPage_T *page,ESGUI_M
  * @note  绘制圆角矩形、标题、居中值文本、底部横向进度条。
  */
 void esgui_default_value_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = (ESGUI_DEFAULT_VALUE_WINDOW_DAT*)page->draw_data;
@@ -2495,8 +2495,8 @@ static const esgui_page_vtable_t value_popwindow_vtable = {
     .on_create = esgui_default_value_popwindow_on_create,
     .on_destroy = esgui_default_value_popwindow_on_destroy,
     .on_draw = esgui_default_value_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_value_popwindow_on_input,
     .on_focus_change = esgui_default_value_popwindow_on_focus_change,
     .on_page_chenge = esgui_default_value_popwindow_on_page_change,
@@ -2510,15 +2510,15 @@ static const esgui_page_vtable_t value_popwindow_vtable = {
  * @param window_h   弹窗高度
  * @param value_desc 值描述符指针（包含数值操作回调）
  */
-void ESGUI_DefaultValuePopWindowCreate(ESGUI_PopWindow_T *window,const char* message,uint16_t window_w,uint16_t window_h,ESGUI_ValueDesc_T *value_desc) {
-    if (window == NULL) return;
+void ESGUI_DefaultValuePopWindowCreate(ESGUI_PopWindow_T *window,const char* message,eui_uint16_t window_w,eui_uint16_t window_h,ESGUI_ValueDesc_T *value_desc) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &value_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->value_desc = value_desc;
     }
     window->draw_data = dat;
@@ -2536,11 +2536,11 @@ void ESGUI_DefaultValuePopWindowCreate(ESGUI_PopWindow_T *window,const char* mes
  */
 void esgui_default_value_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
     esgui_default_value_popwindow_on_create(page);
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = window->draw_data;
-    if (data == NULL || !window->title || !window->title[0]) return;
-    data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    if (data == ESGUI_NULL || !window->title || !window->title[0]) return;
+    data->title_len = (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
     data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
     start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
 }
@@ -2549,7 +2549,7 @@ void esgui_default_value_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page
  * @brief 值弹窗滚动标题版本绘制回调
  */
 void esgui_default_value_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *data = page->draw_data;
@@ -2576,23 +2576,23 @@ void esgui_default_value_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) 
  * @brief 值弹窗滚动标题版本销毁回调
  */
 void esgui_default_value_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
-    if (page->draw_data != NULL) {
+    if (page == ESGUI_NULL) return;
+    if (page->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = page->draw_data;
         anim_stop_all(&dat->title_scroll_x);
         anim_stop_all(&dat->bar_per);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 static const esgui_page_vtable_t value_scroll_title_popwindow_vtable = {
     .on_create = esgui_default_value_scroll_title_popwindow_on_create,
     .on_destroy = esgui_default_value_scroll_title_popwindow_on_destroy,
     .on_draw = esgui_default_value_scroll_title_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_value_popwindow_on_input,
     .on_focus_change = esgui_default_value_popwindow_on_focus_change,
     .on_page_chenge = esgui_default_value_popwindow_on_page_change,
@@ -2602,15 +2602,15 @@ static const esgui_page_vtable_t value_scroll_title_popwindow_vtable = {
  * @brief 创建值弹窗滚动标题版本
  */
 void ESGUI_DefaultValueScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char* message,
-    uint16_t window_w, uint16_t window_h, ESGUI_ValueDesc_T *value_desc) {
-    if (window == NULL) return;
+    eui_uint16_t window_w, eui_uint16_t window_h, ESGUI_ValueDesc_T *value_desc) {
+    if (window == ESGUI_NULL) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &value_scroll_title_popwindow_vtable;
-    window->title = (message == NULL) ? "" : message;
+    window->title = (message == ESGUI_NULL) ? "" : message;
     window->window_w = window_w;
     window->window_h = window_h;
     ESGUI_DEFAULT_VALUE_WINDOW_DAT *dat = popup_data_alloc();
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         dat->value_desc = value_desc;
     }
     window->draw_data = dat;
@@ -2627,17 +2627,17 @@ void ESGUI_DefaultValueScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, con
  * @brief 文本列表弹窗私有数据
  */
 typedef struct {
-    int16_t  focus_box_w;   /**< 焦点框当前宽度 */
-    int16_t  focus_box_y;   /**< 焦点框当前 Y 坐标（相对弹窗内容区） */
-    int16_t  long_text_x;   /**< 长文本滚动当前 X 偏移 */
-    uint16_t text_len;      /**< 当前焦点条目的纯文本宽度 */
-    uint16_t buff;          /**< 弹窗可见条目数 */
-    uint16_t stay;          /**< 焦点保持阈值 */
-    uint16_t item_stride;   /**< 条目步进 */
-    uint8_t  font_height;   /**< 字体高度 */
-    uint8_t  flags;         /**< 状态标志位 */
-    uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
-    int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
+    eui_int16_t  focus_box_w;   /**< 焦点框当前宽度 */
+    eui_int16_t  focus_box_y;   /**< 焦点框当前 Y 坐标（相对弹窗内容区） */
+    eui_int16_t  long_text_x;   /**< 长文本滚动当前 X 偏移 */
+    eui_uint16_t text_len;      /**< 当前焦点条目的纯文本宽度 */
+    eui_uint16_t buff;          /**< 弹窗可见条目数 */
+    eui_uint16_t stay;          /**< 焦点保持阈值 */
+    eui_uint16_t item_stride;   /**< 条目步进 */
+    eui_uint8_t  font_height;   /**< 字体高度 */
+    eui_uint8_t  flags;         /**< 状态标志位 */
+    eui_uint16_t title_len;     /**< 标题文本宽度（滚动标题用） */
+    eui_int16_t  title_scroll_x;/**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT;
 
 #define TXTLIST_FLAG_ANIM  0x01  /**< 长文本滚动动画已启动 */
@@ -2650,9 +2650,9 @@ typedef struct {
  * @param y        目标 Y 坐标
  * @param duration 动画持续时间
  */
-static void start_textlist_focus_box_anim(ESGUI_PopWindow_T *window, int16_t w, int16_t y, uint32_t duration)
+static void start_textlist_focus_box_anim(ESGUI_PopWindow_T *window, eui_int16_t w, eui_int16_t y, eui_uint32_t duration)
 {
-    if (window == NULL || window->draw_data == NULL) return;
+    if (window == ESGUI_NULL || window->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = window->draw_data;
     anim_t anim_w = {0};
     anim_t anim_y = {0};
@@ -2678,9 +2678,9 @@ static void start_textlist_focus_box_anim(ESGUI_PopWindow_T *window, int16_t w, 
  * @param y        目标基线 Y 坐标
  * @param duration 动画持续时间
  */
-static void start_textlist_item_scroll_anim(ESGUI_PopWindow_T *window, int y, uint32_t duration)
+static void start_textlist_item_scroll_anim(ESGUI_PopWindow_T *window, int y, eui_uint32_t duration)
 {
-    if (window == NULL || window->items == NULL) return;
+    if (window == ESGUI_NULL || window->items == ESGUI_NULL) return;
     anim_t anim = {0};
     anim.var      = &window->items[0].y;
     anim.start    = window->items[0].y;
@@ -2697,12 +2697,12 @@ static void start_textlist_item_scroll_anim(ESGUI_PopWindow_T *window, int y, ui
  */
 static void start_textlist_long_text_anim(ESGUI_PopWindow_T *window)
 {
-    if (window == NULL || window->draw_data == NULL) return;
+    if (window == ESGUI_NULL || window->draw_data == ESGUI_NULL) return;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = window->draw_data;
     anim_t anim = {0};
     anim.var        = &data->long_text_x;
     anim.start      = ESGUI_TEXT_MARGIN_X;
-    anim.end        = -(int32_t)data->text_len - (int32_t)ESGUI_LONG_TEXT_GAP;
+    anim.end        = -(eui_int32_t)data->text_len - (eui_int32_t)ESGUI_LONG_TEXT_GAP;
     anim.exec_cb    = anim_cb_int16;
     anim.duration   = 7500;
     anim.path_type  = ANIM_PATH_LINEAR;
@@ -2718,23 +2718,23 @@ static void start_textlist_long_text_anim(ESGUI_PopWindow_T *window)
  */
 void esgui_default_text_list_popwindow_on_create(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T *)page;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = page->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     page->items[0].y = 0;
-    data->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    data->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
     data->item_stride = data->font_height + ESGUI_ITEM_SPACING;
-    data->buff = (uint16_t)(window->window_h / data->item_stride);
+    data->buff = (eui_uint16_t)(window->window_h / data->item_stride);
     if (data->buff == 0) data->buff = 1;
     data->stay = (data->buff + 1) / 2;
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
-    uint16_t text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    eui_uint16_t text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->items[0].label);
     data->text_len = text_len;
-    int16_t max_text_w = window->window_w - 6;
-    data->flags = (text_len > (uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0;
-    int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+    eui_int16_t max_text_w = window->window_w - 6;
+    data->flags = (text_len > (eui_uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0;
+    eui_int16_t focus_w = (eui_int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
     if (focus_w > max_text_w) focus_w = max_text_w;
     if (focus_w < 0) focus_w = 0;
     data->focus_box_w = focus_w;
@@ -2747,16 +2747,16 @@ void esgui_default_text_list_popwindow_on_create(ESGUI_MenuPage_T *page)
  * @param page 页面指针
  */
 void esgui_default_text_list_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
-    if (page->draw_data != NULL) {
+    if (page == ESGUI_NULL) return;
+    if (page->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = page->draw_data;
         anim_stop_all(&dat->long_text_x);
         anim_stop_all(&dat->focus_box_w);
         anim_stop_all(&dat->focus_box_y);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -2767,8 +2767,8 @@ void esgui_default_text_list_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
  */
 ESGUI_MenuAction_T esgui_default_text_list_popwindow_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e)
 {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
-    uint16_t old_focus_idx = page->focus_idx;
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+    eui_uint16_t old_focus_idx = page->focus_idx;
     switch (e) {
         case EVT_KEY_UP:
         case EVT_KEY_RIGHT:
@@ -2783,19 +2783,19 @@ ESGUI_MenuAction_T esgui_default_text_list_popwindow_on_input(ESGUI_MenuPage_T *
             if (page->items[page->focus_idx].on_enter) {
                 return page->items[page->focus_idx].on_enter(page, page->items[page->focus_idx].arg);
             }
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
     if (old_focus_idx != page->focus_idx) {
         if (page->vtbl->on_focus_change) {
             page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
         }
-        return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -2805,27 +2805,27 @@ ESGUI_MenuAction_T esgui_default_text_list_popwindow_on_input(ESGUI_MenuPage_T *
  * @param new_idx  新焦点索引
  * @note  逻辑与文本菜单焦点变化类似，但坐标系基于弹窗内部。
  */
-void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx)
+void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx)
 {
     (void)old_idx;
     (void)new_idx;
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T *)page;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = page->draw_data;
-    uint16_t focus_idx = page->focus_idx;
-    uint16_t item_num  = page->item_num;
-    uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_uint16_t item_num  = page->item_num;
+    eui_uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
     data->text_len = text_len;
-    int16_t max_text_w = window->window_w - 6;
+    eui_int16_t max_text_w = window->window_w - 6;
     data->flags = (data->flags & ~TXTLIST_FLAG_LONG)
-                | ((text_len > (uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0);
-    int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+                | ((text_len > (eui_uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0);
+    eui_int16_t focus_w = (eui_int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
     if (focus_w > max_text_w) focus_w = max_text_w;
     if (focus_w < 0) focus_w = 0;
-    int16_t top_y = 0;
-    uint16_t first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
-    uint16_t focus_in_view = focus_idx - first_visible;
-    int16_t focus_y = calc_focus_y(top_y, focus_in_view, data->item_stride);
+    eui_int16_t top_y = 0;
+    eui_uint16_t first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
+    eui_uint16_t focus_in_view = focus_idx - first_visible;
+    eui_int16_t focus_y = calc_focus_y(top_y, focus_in_view, data->item_stride);
 
     if (item_num <= data->buff) {
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
@@ -2833,13 +2833,13 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, u
         start_textlist_item_scroll_anim(window, top_y, 230);
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     } else if (focus_idx < item_num - (data->buff / 2)) {
-        int16_t list_y = calc_list_y(top_y, first_visible, data->item_stride);
+        eui_int16_t list_y = calc_list_y(top_y, first_visible, data->item_stride);
         start_textlist_item_scroll_anim(window, list_y, 230);
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     } else {
         /* 修复：底部区域直接修正 items[0].y，避免旧动画目标导致列表偏移 */
-        uint16_t first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
-        int16_t list_y = calc_list_y(top_y, first_visible, data->item_stride);
+        first_visible = calc_first_visible_for_focus(item_num, data->buff, data->stay, focus_idx);
+        eui_int16_t list_y = calc_list_y(top_y, first_visible, data->item_stride);
         page->items[0].y = list_y;
         start_textlist_focus_box_anim(window, focus_w, focus_y, 400);
     }
@@ -2855,7 +2855,7 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, u
  * @param action 动作指令
  */
 void esgui_text_list_popwindow_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T *)page;
     CanvasStripIter *c_it = page->render_ctx;
     switch (action->act) {
@@ -2880,11 +2880,11 @@ void esgui_text_list_popwindow_default_on_page_change(ESGUI_MenuPage_T *page, ES
  */
 void esgui_default_text_list_popwindow_on_draw(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     CanvasStripIter *c_it = (CanvasStripIter *)page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = (ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *)page->draw_data;
-    uint16_t start, end;
+    eui_uint16_t start, end;
     calc_visible_range(page->item_num, data->buff, data->stay, page->focus_idx, &start, &end);
     Area clip = {
         window->window_x,
@@ -2897,30 +2897,30 @@ void esgui_default_text_list_popwindow_on_draw(ESGUI_MenuPage_T *page)
         window->window_x, window->window_y,
         window->window_x + window->window_w,
         window->window_y + window->window_h, 5, EUI_MODE_SET);
-    int16_t list_base_y = window->window_y + 3 + page->items[0].y;
-    uint16_t stride = data->item_stride;
-    uint16_t focus_idx = page->focus_idx;
-    int16_t max_text_w = window->window_w - 6;
-    int32_t item_y_acc = (int32_t)list_base_y + (int32_t)start * (int32_t)stride;
-    for (uint16_t i = start; i <= end; i++, item_y_acc += stride) {
-        int16_t item_y = (int16_t)item_y_acc;
+    eui_int16_t list_base_y = window->window_y + 3 + page->items[0].y;
+    eui_uint16_t stride = data->item_stride;
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_int16_t max_text_w = window->window_w - 6;
+    eui_int32_t item_y_acc = (eui_int32_t)list_base_y + (eui_int32_t)start * (eui_int32_t)stride;
+    for (eui_uint16_t i = start; i <= end; i++, item_y_acc += stride) {
+        eui_int16_t item_y = (eui_int16_t)item_y_acc;
         if (i == focus_idx && (data->flags & TXTLIST_FLAG_LONG)) {
-            uint16_t cached_text_len = data->text_len;
-            int16_t long_text_x = data->long_text_x;
-            int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
-            int16_t w1 = max_text_w + abs_x - ESGUI_TEXT_MARGIN_X;
-            if (w1 > (int16_t)cached_text_len) w1 = (int16_t)cached_text_len;
+            eui_uint16_t cached_text_len = data->text_len;
+            eui_int16_t long_text_x = data->long_text_x;
+            eui_int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
+            eui_int16_t w1 = max_text_w + abs_x - ESGUI_TEXT_MARGIN_X;
+            if (w1 > (eui_int16_t)cached_text_len) w1 = (eui_int16_t)cached_text_len;
             if (w1 < 0) w1 = 0;
             eui_draw_text_clip(c_it->canvas,
                 window->window_x + long_text_x, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w1);
-            int32_t text_plus_x = (int32_t)cached_text_len + (int32_t)long_text_x;
-            int16_t text_area_right = window->window_w - 3;
-            int16_t remain = text_area_right - (int16_t)text_plus_x;
+            eui_int32_t text_plus_x = (eui_int32_t)cached_text_len + (eui_int32_t)long_text_x;
+            eui_int16_t text_area_right = window->window_w - 3;
+            eui_int16_t remain = text_area_right - (eui_int16_t)text_plus_x;
             if (remain >= ESGUI_LONG_TEXT_GAP) {
-                int16_t X2 = long_text_x + (int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
-                int16_t w2 = text_area_right - X2;
-                if (w2 > (int16_t)cached_text_len) w2 = (int16_t)cached_text_len;
+                eui_int16_t X2 = long_text_x + (eui_int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
+                eui_int16_t w2 = text_area_right - X2;
+                if (w2 > (eui_int16_t)cached_text_len) w2 = (eui_int16_t)cached_text_len;
                 if (w2 < 0) w2 = 0;
                 eui_draw_text_clip(c_it->canvas,
                     window->window_x + X2, item_y,
@@ -2931,20 +2931,20 @@ void esgui_default_text_list_popwindow_on_draw(ESGUI_MenuPage_T *page)
                 start_textlist_long_text_anim(window);
             }
         }else {
-            uint16_t pure_w = get_pure_text_width(page->items[i].label);
-            int16_t draw_w = (max_text_w < (int16_t)pure_w) ? max_text_w : (int16_t)pure_w;
+            eui_uint16_t pure_w = get_pure_text_width(page->items[i].label);
+            eui_int16_t draw_w = (max_text_w < (eui_int16_t)pure_w) ? max_text_w : (eui_int16_t)pure_w;
             if (draw_w < 0) draw_w = 0;
             eui_draw_text_clip(c_it->canvas,
                 window->window_x + ESGUI_TEXT_MARGIN_X, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, (int)draw_w);
         }
     }
-    int16_t abs_focus_y = window->window_y + 3 + data->focus_box_y;
+    eui_int16_t abs_focus_y = window->window_y + 3 + data->focus_box_y;
     ESGUI_WidgetTextFocusBox(c_it->canvas,
         window->window_x,
         abs_focus_y,
         data->font_height,
-        (uint8_t)data->focus_box_w);
+        (eui_uint8_t)data->focus_box_w);
     canvas_clip_pop(c_it->canvas);
 }
 
@@ -2955,8 +2955,8 @@ static const esgui_page_vtable_t text_list_popwindow_vtable = {
     .on_create = esgui_default_text_list_popwindow_on_create,
     .on_destroy = esgui_default_text_list_popwindow_on_destroy,
     .on_draw = esgui_default_text_list_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_text_list_popwindow_on_input,
     .on_focus_change = esgui_default_text_list_popwindow_on_focus_change,
     .on_page_chenge = esgui_text_list_popwindow_default_on_page_change,
@@ -2970,15 +2970,15 @@ static const esgui_page_vtable_t text_list_popwindow_vtable = {
  * @param items      条目数组
  * @param item_num   条目数量
  */
-void ESGUI_DefaultTextListPopWindowCreate(ESGUI_PopWindow_T *window, uint16_t window_w, uint16_t window_h,
-                                          ESGUI_MenuItem_T *items, size_t item_num) {
-    if (window == NULL || items == NULL || item_num == 0) return;
+void ESGUI_DefaultTextListPopWindowCreate(ESGUI_PopWindow_T *window, eui_uint16_t window_w, eui_uint16_t window_h,
+                                          ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (window == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &text_list_popwindow_vtable;
     window->window_w = window_w;
     window->window_h = window_h;
     window->items = items;
-    window->item_num = (uint16_t)item_num;
+    window->item_num = (eui_uint16_t)item_num;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = popup_data_alloc();
     window->draw_data = dat;
 }
@@ -2996,32 +2996,32 @@ void ESGUI_DefaultTextListPopWindowCreate(ESGUI_PopWindow_T *window, uint16_t wi
  */
 void esgui_default_text_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T *)page;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = page->draw_data;
-    if (data == NULL) return;
+    if (data == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     page->items[0].y = 0;
-    data->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    data->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, page->items[0].label);
     data->item_stride = data->font_height + ESGUI_ITEM_SPACING;
-    uint16_t title_h = 0;
+    eui_uint16_t title_h = 0;
     if (page->title && page->title[0]) {
         title_h = data->font_height + 2 * ESGUI_POPUP_TITLE_SCROLL_MARGIN;
-        data->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, page->title);
+        data->title_len = (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, page->title);
         data->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
         start_popup_title_scroll_anim(window, &data->title_scroll_x, data->title_len);
     }
-    int16_t content_h = (int16_t)window->window_h - (int16_t)title_h;
+    eui_int16_t content_h = (eui_int16_t)window->window_h - (eui_int16_t)title_h;
     if (content_h < 0) content_h = 0;
-    data->buff = (uint16_t)(content_h / data->item_stride);
+    data->buff = (eui_uint16_t)(content_h / data->item_stride);
     if (data->buff == 0) data->buff = 1;
     data->stay = (data->buff + 1) / 2;
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
-    uint16_t text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->items[0].label);
+    eui_uint16_t text_len = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->items[0].label);
     data->text_len = text_len;
-    int16_t max_text_w = window->window_w - 6;
-    data->flags = (text_len > (uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0;
-    int16_t focus_w = (int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
+    eui_int16_t max_text_w = window->window_w - 6;
+    data->flags = (text_len > (eui_uint16_t)max_text_w) ? TXTLIST_FLAG_LONG : 0;
+    eui_int16_t focus_w = (eui_int16_t)(text_len + ESGUI_FOCUS_BOX_PAD_X);
     if (focus_w > max_text_w) focus_w = max_text_w;
     if (focus_w < 0) focus_w = 0;
     data->focus_box_w = focus_w;
@@ -3033,17 +3033,17 @@ void esgui_default_text_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *
  * @brief 文本列表弹窗滚动标题版本销毁回调
  */
 void esgui_default_text_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
-    if (page->draw_data != NULL) {
+    if (page == ESGUI_NULL) return;
+    if (page->draw_data != ESGUI_NULL) {
         ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = page->draw_data;
         anim_stop_all(&dat->title_scroll_x);
         anim_stop_all(&dat->long_text_x);
         anim_stop_all(&dat->focus_box_w);
         anim_stop_all(&dat->focus_box_y);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -3052,11 +3052,11 @@ void esgui_default_text_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T 
  */
 void esgui_default_text_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page)
 {
-    if (page == NULL || page->draw_data == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
     CanvasStripIter *c_it = (CanvasStripIter *)page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *data = (ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *)page->draw_data;
-    uint16_t start, end;
+    eui_uint16_t start, end;
     calc_visible_range(page->item_num, data->buff, data->stay, page->focus_idx, &start, &end);
     Area clip = {
         window->window_x, window->window_y,
@@ -3069,36 +3069,36 @@ void esgui_default_text_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pa
         window->window_x + window->window_w,
         window->window_y + window->window_h, 5, EUI_MODE_SET);
 
-    uint16_t title_h = 0;
+    eui_uint16_t title_h = 0;
     if (page->title && page->title[0]) {
         draw_popup_scrolling_title(c_it, window, data->title_len, data->title_scroll_x);
         title_h = data->font_height + 2 * ESGUI_POPUP_TITLE_SCROLL_MARGIN;
     }
 
-    int16_t list_base_y = window->window_y + 3 + title_h + page->items[0].y;
-    uint16_t stride = data->item_stride;
-    uint16_t focus_idx = page->focus_idx;
-    int16_t max_text_w = window->window_w - 6;
-    int32_t item_y_acc = (int32_t)list_base_y + (int32_t)start * (int32_t)stride;
-    for (uint16_t i = start; i <= end; i++, item_y_acc += stride) {
-        int16_t item_y = (int16_t)item_y_acc;
+    eui_int16_t list_base_y = window->window_y + 3 + title_h + page->items[0].y;
+    eui_uint16_t stride = data->item_stride;
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_int16_t max_text_w = window->window_w - 6;
+    eui_int32_t item_y_acc = (eui_int32_t)list_base_y + (eui_int32_t)start * (eui_int32_t)stride;
+    for (eui_uint16_t i = start; i <= end; i++, item_y_acc += stride) {
+        eui_int16_t item_y = (eui_int16_t)item_y_acc;
         if (i == focus_idx && (data->flags & TXTLIST_FLAG_LONG)) {
-            uint16_t cached_text_len = data->text_len;
-            int16_t long_text_x = data->long_text_x;
-            int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
-            int16_t w1 = max_text_w + abs_x - ESGUI_TEXT_MARGIN_X;
-            if (w1 > (int16_t)cached_text_len) w1 = (int16_t)cached_text_len;
+            eui_uint16_t cached_text_len = data->text_len;
+            eui_int16_t long_text_x = data->long_text_x;
+            eui_int16_t abs_x = (long_text_x < 0) ? -long_text_x : long_text_x;
+            eui_int16_t w1 = max_text_w + abs_x - ESGUI_TEXT_MARGIN_X;
+            if (w1 > (eui_int16_t)cached_text_len) w1 = (eui_int16_t)cached_text_len;
             if (w1 < 0) w1 = 0;
             eui_draw_text_clip(c_it->canvas,
                 window->window_x + long_text_x, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, w1);
-            int32_t text_plus_x = (int32_t)cached_text_len + (int32_t)long_text_x;
-            int16_t text_area_right = window->window_w - 3;
-            int16_t remain = text_area_right - (int16_t)text_plus_x;
+            eui_int32_t text_plus_x = (eui_int32_t)cached_text_len + (eui_int32_t)long_text_x;
+            eui_int16_t text_area_right = window->window_w - 3;
+            eui_int16_t remain = text_area_right - (eui_int16_t)text_plus_x;
             if (remain >= ESGUI_LONG_TEXT_GAP) {
-                int16_t X2 = long_text_x + (int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
-                int16_t w2 = text_area_right - X2;
-                if (w2 > (int16_t)cached_text_len) w2 = (int16_t)cached_text_len;
+                eui_int16_t X2 = long_text_x + (eui_int16_t)cached_text_len + ESGUI_LONG_TEXT_GAP + 2;
+                eui_int16_t w2 = text_area_right - X2;
+                if (w2 > (eui_int16_t)cached_text_len) w2 = (eui_int16_t)cached_text_len;
                 if (w2 < 0) w2 = 0;
                 eui_draw_text_clip(c_it->canvas,
                     window->window_x + X2, item_y,
@@ -3109,20 +3109,20 @@ void esgui_default_text_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pa
                 start_textlist_long_text_anim(window);
             }
         } else {
-            uint16_t pure_w = get_pure_text_width(page->items[i].label);
-            int16_t draw_w = (max_text_w < (int16_t)pure_w) ? max_text_w : (int16_t)pure_w;
+            eui_uint16_t pure_w = get_pure_text_width(page->items[i].label);
+            eui_int16_t draw_w = (max_text_w < (eui_int16_t)pure_w) ? max_text_w : (eui_int16_t)pure_w;
             if (draw_w < 0) draw_w = 0;
             eui_draw_text_clip(c_it->canvas,
                 window->window_x + ESGUI_TEXT_MARGIN_X, item_y,
                 &ESGUI_DEFAULT_FONT, page->items[i].label, EUI_MODE_SET, (int)draw_w);
         }
     }
-    int16_t abs_focus_y = window->window_y + 3 + title_h + data->focus_box_y;
+    eui_int16_t abs_focus_y = window->window_y + 3 + title_h + data->focus_box_y;
     ESGUI_WidgetTextFocusBox(c_it->canvas,
         window->window_x,
         abs_focus_y,
         data->font_height,
-        (uint8_t)data->focus_box_w);
+        (eui_uint8_t)data->focus_box_w);
     canvas_clip_pop(c_it->canvas);
 }
 
@@ -3130,8 +3130,8 @@ static const esgui_page_vtable_t text_list_scroll_title_popwindow_vtable = {
     .on_create = esgui_default_text_list_scroll_title_popwindow_on_create,
     .on_destroy = esgui_default_text_list_scroll_title_popwindow_on_destroy,
     .on_draw = esgui_default_text_list_scroll_title_popwindow_on_draw,
-    .special_item_draw = NULL,
-    .get_special_item_draw_w = NULL,
+    .special_item_draw = ESGUI_NULL,
+    .get_special_item_draw_w = ESGUI_NULL,
     .on_input = esgui_default_text_list_popwindow_on_input,
     .on_focus_change = esgui_default_text_list_popwindow_on_focus_change,
     .on_page_chenge = esgui_text_list_popwindow_default_on_page_change,
@@ -3140,16 +3140,16 @@ static const esgui_page_vtable_t text_list_scroll_title_popwindow_vtable = {
 /**
  * @brief 创建文本列表弹窗滚动标题版本
  */
-void ESGUI_DefaultTextListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title, uint16_t window_w, uint16_t window_h,
-    ESGUI_MenuItem_T *items, size_t item_num) {
-    if (window == NULL || items == NULL || item_num == 0) return;
+void ESGUI_DefaultTextListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title, eui_uint16_t window_w, eui_uint16_t window_h,
+    ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (window == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl = &text_list_scroll_title_popwindow_vtable;
-    window->title = (title == NULL) ? "" : title;
+    window->title = (title == ESGUI_NULL) ? "" : title;
     window->window_w = window_w;
     window->window_h = window_h;
     window->items = items;
-    window->item_num = (uint16_t)item_num;
+    window->item_num = (eui_uint16_t)item_num;
     ESGUI_DEFAULT_TEXT_LIST_WINDOW_DAT *dat = popup_data_alloc();
     window->draw_data = dat;
 }
@@ -3165,18 +3165,18 @@ void ESGUI_DefaultTextListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, 
  * @brief BMP 列表弹窗私有数据
  */
 typedef struct {
-    uint16_t font_height;       /**< 字体高度 */
-    uint16_t label_y;           /**< 标签基准 Y 坐标 */
-    int16_t  label_anim_y;      /**< 标签动画当前 Y */
-    uint16_t bmp_y;             /**< 图片区域基准 Y */
-    uint16_t content_padding;   /**< 内容区内边距 */
-    uint16_t box_start_w;       /**< 焦点框起始宽度 */
-    uint16_t box_start_h;       /**< 焦点框起始高度 */
-    uint16_t box_target_w;      /**< 焦点框目标宽度 */
-    uint16_t box_target_h;      /**< 焦点框目标高度 */
-    uint16_t box_permille;      /**< 焦点框生长进度 */
-    uint16_t title_len;         /**< 标题文本宽度（滚动标题用） */
-    int16_t  title_scroll_x;    /**< 标题滚动当前 X 偏移（滚动标题用） */
+    eui_uint16_t font_height;       /**< 字体高度 */
+    eui_uint16_t label_y;           /**< 标签基准 Y 坐标 */
+    eui_int16_t  label_anim_y;      /**< 标签动画当前 Y */
+    eui_uint16_t bmp_y;             /**< 图片区域基准 Y */
+    eui_uint16_t content_padding;   /**< 内容区内边距 */
+    eui_uint16_t box_start_w;       /**< 焦点框起始宽度 */
+    eui_uint16_t box_start_h;       /**< 焦点框起始高度 */
+    eui_uint16_t box_target_w;      /**< 焦点框目标宽度 */
+    eui_uint16_t box_target_h;      /**< 焦点框目标高度 */
+    eui_uint16_t box_permille;      /**< 焦点框生长进度 */
+    eui_uint16_t title_len;         /**< 标题文本宽度（滚动标题用） */
+    eui_int16_t  title_scroll_x;    /**< 标题滚动当前 X 偏移（滚动标题用） */
 } ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT;
 
 /**
@@ -3185,41 +3185,41 @@ typedef struct {
  * @note  计算弹窗内图片布局、标签位置，初始化焦点框尺寸。
  */
 void esgui_default_bmp_list_popwindow_on_create(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
-    if (dat == NULL) return;
-    dat->font_height = (uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
+    if (dat == ESGUI_NULL) return;
+    dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
     dat->content_padding = 5;
-    uint16_t content_w = window->window_w - 2 * dat->content_padding;
-    uint16_t title_h = 0;
+    eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
+    eui_uint16_t title_h = 0;
     if (page->title && page->title[0]) {
         title_h = dat->font_height + 4;
     }
-    uint16_t max_bmp_h = 0;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_uint16_t max_bmp_h = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
     }
     dat->label_y = window->window_h - dat->font_height - 5;
     dat->label_anim_y = dat->label_y;
-    uint16_t top_margin = title_h + 5;
-    uint16_t bottom_margin = dat->font_height + 8;
-    uint16_t mid_h = (window->window_h > top_margin + bottom_margin)
+    eui_uint16_t top_margin = title_h + 5;
+    eui_uint16_t bottom_margin = dat->font_height + 8;
+    eui_uint16_t mid_h = (window->window_h > top_margin + bottom_margin)
                      ? (window->window_h - top_margin - bottom_margin) : 0;
     dat->bmp_y = top_margin + (mid_h > max_bmp_h ? (mid_h - max_bmp_h) / 2 : 0);
     page->items[0].x = 0;
-    int16_t rel_x = 0;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_int16_t rel_x = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (bmp) {
             page->items[i].y = dat->bmp_y + (max_bmp_h - bmp->h) / 2;
         } else {
             page->items[i].y = dat->bmp_y;
         }
         if (i > 0) {
-            Bitmap *prev_bmp = page->items[i - 1].icon;
+            const Bitmap *prev_bmp = page->items[i - 1].icon;
             if (prev_bmp) rel_x += prev_bmp->w + ESGUI_BMP_ITEM_GAP;
             page->items[i].x = rel_x;
         }
@@ -3227,7 +3227,7 @@ void esgui_default_bmp_list_popwindow_on_create(ESGUI_MenuPage_T *page) {
     dat->box_permille = 0;
     dat->box_start_w  = 0;
     dat->box_start_h  = 0;
-    Bitmap *first_bmp = page->items[0].icon;
+    const Bitmap *first_bmp = page->items[0].icon;
     dat->box_target_w = first_bmp ? first_bmp->w + 4 : 0;
     dat->box_target_h = first_bmp ? first_bmp->h + 4 : 0;
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
@@ -3238,16 +3238,16 @@ void esgui_default_bmp_list_popwindow_on_create(ESGUI_MenuPage_T *page) {
  * @param page 页面指针
  */
 void esgui_default_bmp_list_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         anim_stop_all(&page->items[0].x);
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->label_anim_y);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 /**
@@ -3257,8 +3257,8 @@ void esgui_default_bmp_list_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
  * @return 动作指令
  */
 ESGUI_MenuAction_T esgui_default_bmp_list_popwindow_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e) {
-    if (page == NULL) return (ESGUI_MenuAction_T){ACT_NONE, NULL};
-    uint16_t old_focus_idx = page->focus_idx;
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+    eui_uint16_t old_focus_idx = page->focus_idx;
     switch (e) {
         case EVT_KEY_UP:
         case EVT_KEY_RIGHT:
@@ -3273,19 +3273,19 @@ ESGUI_MenuAction_T esgui_default_bmp_list_popwindow_on_input(ESGUI_MenuPage_T *p
             if (page->items[page->focus_idx].on_enter) {
                 return page->items[page->focus_idx].on_enter(page, page->items[page->focus_idx].arg);
             }
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         case EVT_KEY_BACK:
-            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL};
+            return (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, ESGUI_NULL};
         default:
-            return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
     }
     if (old_focus_idx != page->focus_idx) {
         if (page->vtbl->on_focus_change) {
             page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
         }
-        return (ESGUI_MenuAction_T){ACT_REFRESH, NULL};
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
     }
-    return (ESGUI_MenuAction_T){ACT_NONE, NULL};
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
 /**
@@ -3295,17 +3295,17 @@ ESGUI_MenuAction_T esgui_default_bmp_list_popwindow_on_input(ESGUI_MenuPage_T *p
  * @param new_idx  新焦点索引
  * @note  逻辑与 BMP 菜单焦点变化类似，但布局在弹窗内部。
  */
-void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, uint16_t old_idx, uint16_t new_idx) {
+void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
     (void)old_idx; (void)new_idx;
-    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
-    uint16_t focus_idx = page->focus_idx;
-    uint16_t content_w = window->window_w - 2 * dat->content_padding;
-    int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-    Bitmap *focus_bmp = page->items[focus_idx].icon;
-    int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
-    int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
+    eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+    const Bitmap *focus_bmp = page->items[focus_idx].icon;
+    eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
+    eui_int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
     anim_t anim = {0};
     anim.var       = &page->items[0].x;
     anim.start     = page->items[0].x;
@@ -3315,13 +3315,13 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, ui
     anim.path_type = ANIM_PATH_EASE_OUT;
     anim_start(&anim);
     anim_stop_all(&dat->box_permille);
-    int32_t delta_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
-    int32_t delta_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
-    uint16_t current_w = (uint16_t)((int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
-    uint16_t current_h = (uint16_t)((int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
-    Bitmap *new_bmp = page->items[focus_idx].icon;
-    uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
-    uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
+    eui_int32_t delta_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+    eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+    eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
+    eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
+    const Bitmap *new_bmp = page->items[focus_idx].icon;
+    eui_uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
+    eui_uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
     dat->box_start_w  = current_w;
     dat->box_start_h  = current_h;
     dat->box_target_w = new_w;
@@ -3338,8 +3338,8 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, ui
     anim_stop_all(&dat->label_anim_y);
     anim_t anim_label = {0};
     anim_label.var       = &dat->label_anim_y;
-    anim_label.start     = (int16_t)(window->window_h + dat->font_height);
-    anim_label.end       = (int16_t)dat->label_y;
+    anim_label.start     = (eui_int16_t)(window->window_h + dat->font_height);
+    anim_label.end       = (eui_int16_t)dat->label_y;
     anim_label.exec_cb   = anim_cb_int16;
     anim_label.duration  = 400;
     anim_label.path_type = ANIM_PATH_EASE_OUT;
@@ -3352,18 +3352,18 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, ui
  * @param action 动作指令
  */
 void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
-    if (page == NULL || action == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || action == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
-    uint16_t content_w = window->window_w - 2 * dat->content_padding;
+    eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
     if (action->act == ACT_SHOW_POPUP) {
-        uint16_t focus_idx = page->focus_idx;
-        int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-        Bitmap *focus_bmp = page->items[focus_idx].icon;
-        int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
-        int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
-        int16_t start_base = content_w;
+        eui_uint16_t focus_idx = page->focus_idx;
+        eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+        const Bitmap *focus_bmp = page->items[focus_idx].icon;
+        eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
+        eui_int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
+        eui_int16_t start_base = content_w;
         page->items[0].x = start_base;
         anim_t anim = {0};
         anim.var       = &page->items[0].x;
@@ -3376,7 +3376,7 @@ void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESG
         dat->box_permille = 0;
         dat->box_start_w  = 0;
         dat->box_start_h  = 0;
-        Bitmap *new_bmp = page->items[focus_idx].icon;
+        const Bitmap *new_bmp = page->items[focus_idx].icon;
         dat->box_target_w = new_bmp ? new_bmp->w + 4 : 0;
         dat->box_target_h = new_bmp ? new_bmp->h + 4 : 0;
         anim_t anim_box = {0};
@@ -3388,11 +3388,11 @@ void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESG
         anim_box.path_type = ANIM_PATH_EASE_OUT;
         anim_start(&anim_box);
         anim_stop_all(&dat->label_anim_y);
-        dat->label_anim_y = (int16_t)(window->window_h + dat->font_height);
+        dat->label_anim_y = (eui_int16_t)(window->window_h + dat->font_height);
         anim_t anim_label = {0};
         anim_label.var       = &dat->label_anim_y;
-        anim_label.start     = (int16_t)(window->window_h + dat->font_height);
-        anim_label.end       = (int16_t)dat->label_y;
+        anim_label.start     = (eui_int16_t)(window->window_h + dat->font_height);
+        anim_label.end       = (eui_int16_t)dat->label_y;
         anim_label.exec_cb   = anim_cb_int16;
         anim_label.duration  = 400;
         anim_label.path_type = ANIM_PATH_EASE_OUT;
@@ -3411,7 +3411,7 @@ void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESG
  * @param page 页面指针
  */
 void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
@@ -3431,7 +3431,7 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
             &ESGUI_DEFAULT_FONT, page->title, EUI_MODE_SET,
             window->window_w - 10);
     }
-    uint16_t title_h = (page->title && page->title[0]) ? (dat->font_height + 4) : 0;
+    eui_uint16_t title_h = (page->title && page->title[0]) ? (dat->font_height + 4) : 0;
     Area bmp_clip = {
         window->window_x + dat->content_padding,
         window->window_y + title_h + 2,
@@ -3439,26 +3439,26 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
         window->window_y + dat->label_y - 2
     };
     canvas_clip_push(c_it->canvas, &bmp_clip);
-    int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (!bmp) continue;
-        int16_t rel_x = bmp_item_rel_x(page, i);
-        int16_t x = base_x + rel_x;
-        int16_t y = window->window_y + page->items[i].y;
-        int16_t w = bmp->w;
-        int16_t h = bmp->h;
-        int16_t clip_left = (int16_t)(window->window_x + dat->content_padding);
-        int16_t clip_right = (int16_t)(window->window_x + window->window_w - dat->content_padding);
+        eui_int16_t rel_x = bmp_item_rel_x(page, i);
+        eui_int16_t x = base_x + rel_x;
+        eui_int16_t y = window->window_y + page->items[i].y;
+        eui_int16_t w = bmp->w;
+        eui_int16_t h = bmp->h;
+        eui_int16_t clip_left = (eui_int16_t)(window->window_x + dat->content_padding);
+        eui_int16_t clip_right = (eui_int16_t)(window->window_x + window->window_w - dat->content_padding);
         if (x + w < clip_left || x > clip_right) continue;
         eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
         if (i == page->focus_idx) {
-            int32_t d_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
-            int32_t d_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
-            uint16_t cur_w = (uint16_t)((int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
-            uint16_t cur_h = (uint16_t)((int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
-            int16_t content_w = window->window_w - 2 * dat->content_padding;
-            int fx = window->window_x + dat->content_padding + (content_w - (int16_t)cur_w) / 2;
+            eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+            eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+            eui_uint16_t cur_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
+            eui_uint16_t cur_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
+            eui_int16_t content_w = window->window_w - 2 * dat->content_padding;
+            int fx = window->window_x + dat->content_padding + (content_w - (eui_int16_t)cur_w) / 2;
             int center_y = (int)y + (bmp->h) / 2;
             int fy = center_y - (int)cur_h / 2;
             ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
@@ -3485,8 +3485,8 @@ static const esgui_page_vtable_t bmp_list_popwindow_vtable = {
     .on_create                = esgui_default_bmp_list_popwindow_on_create,
     .on_destroy               = esgui_default_bmp_list_popwindow_on_destroy,
     .on_draw                  = esgui_default_bmp_list_popwindow_on_draw,
-    .special_item_draw        = NULL,
-    .get_special_item_draw_w  = NULL,
+    .special_item_draw        = ESGUI_NULL,
+    .get_special_item_draw_w  = ESGUI_NULL,
     .on_input                 = esgui_default_bmp_list_popwindow_on_input,
     .on_focus_change          = esgui_default_bmp_list_popwindow_on_focus_change,
     .on_page_chenge           = esgui_default_bmp_list_popwindow_on_page_change,
@@ -3502,16 +3502,16 @@ static const esgui_page_vtable_t bmp_list_popwindow_vtable = {
  * @param item_num   条目数量
  */
 void ESGUI_DefaultBMPListPopWindowCreate(ESGUI_PopWindow_T *window, const char *title,
-                                         uint16_t window_w, uint16_t window_h,
-                                         ESGUI_MenuItem_T *items, size_t item_num) {
-    if (window == NULL || items == NULL || item_num == 0) return;
+                                         eui_uint16_t window_w, eui_uint16_t window_h,
+                                         ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (window == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl     = &bmp_list_popwindow_vtable;
-    window->title    = (title == NULL) ? "" : title;
+    window->title    = (title == ESGUI_NULL) ? "" : title;
     window->window_w = window_w;
     window->window_h = window_h;
     window->items    = items;
-    window->item_num = (uint16_t)item_num;
+    window->item_num = (eui_uint16_t)item_num;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = popup_data_alloc();
     window->draw_data = dat;
 }
@@ -3528,11 +3528,11 @@ void ESGUI_DefaultBMPListPopWindowCreate(ESGUI_PopWindow_T *window, const char *
  */
 void esgui_default_bmp_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *page) {
     esgui_default_bmp_list_popwindow_on_create(page);
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
-    if (dat == NULL || !window->title || !window->title[0]) return;
-    dat->title_len = (uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
+    if (dat == ESGUI_NULL || !window->title || !window->title[0]) return;
+    dat->title_len = (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, window->title);
     dat->title_scroll_x = ESGUI_POPUP_TITLE_SCROLL_MARGIN;
     start_popup_title_scroll_anim(window, &dat->title_scroll_x, dat->title_len);
 }
@@ -3541,7 +3541,7 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_create(ESGUI_MenuPage_T *p
  * @brief BMP 列表弹窗滚动标题版本绘制回调
  */
 void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *page) {
-    if (page == NULL || page->draw_data == NULL || page->render_ctx == NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
@@ -3556,7 +3556,7 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
         window->window_x + window->window_w,
         window->window_y + window->window_h, 5, EUI_MODE_SET);
     draw_popup_scrolling_title(c_it, window, dat->title_len, dat->title_scroll_x);
-    uint16_t title_h = (page->title && page->title[0]) ? (dat->font_height + 4) : 0;
+    eui_uint16_t title_h = (page->title && page->title[0]) ? (dat->font_height + 4) : 0;
     Area bmp_clip = {
         window->window_x + dat->content_padding,
         window->window_y + title_h + 2,
@@ -3564,26 +3564,26 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
         window->window_y + dat->label_y - 2
     };
     canvas_clip_push(c_it->canvas, &bmp_clip);
-    int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
-    for (uint16_t i = 0; i < page->item_num; i++) {
-        Bitmap *bmp = page->items[i].icon;
+    eui_int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = page->items[i].icon;
         if (!bmp) continue;
-        int16_t rel_x = bmp_item_rel_x(page, i);
-        int16_t x = base_x + rel_x;
-        int16_t y = window->window_y + page->items[i].y;
-        int16_t w = bmp->w;
-        int16_t h = bmp->h;
-        int16_t clip_left = (int16_t)(window->window_x + dat->content_padding);
-        int16_t clip_right = (int16_t)(window->window_x + window->window_w - dat->content_padding);
+        eui_int16_t rel_x = bmp_item_rel_x(page, i);
+        eui_int16_t x = base_x + rel_x;
+        eui_int16_t y = window->window_y + page->items[i].y;
+        eui_int16_t w = bmp->w;
+        eui_int16_t h = bmp->h;
+        eui_int16_t clip_left = (eui_int16_t)(window->window_x + dat->content_padding);
+        eui_int16_t clip_right = (eui_int16_t)(window->window_x + window->window_w - dat->content_padding);
         if (x + w < clip_left || x > clip_right) continue;
         eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
         if (i == page->focus_idx) {
-            int32_t d_w = (int32_t)dat->box_target_w - (int32_t)dat->box_start_w;
-            int32_t d_h = (int32_t)dat->box_target_h - (int32_t)dat->box_start_h;
-            uint16_t cur_w = (uint16_t)((int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
-            uint16_t cur_h = (uint16_t)((int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
-            int16_t content_w = window->window_w - 2 * dat->content_padding;
-            int fx = window->window_x + dat->content_padding + (content_w - (int16_t)cur_w) / 2;
+            eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+            eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+            eui_uint16_t cur_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
+            eui_uint16_t cur_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
+            eui_int16_t content_w = window->window_w - 2 * dat->content_padding;
+            int fx = window->window_x + dat->content_padding + (content_w - (eui_int16_t)cur_w) / 2;
             int center_y = (int)y + (bmp->h) / 2;
             int fy = center_y - (int)cur_h / 2;
             ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
@@ -3607,25 +3607,25 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
  * @brief BMP 列表弹窗滚动标题版本销毁回调
  */
 void esgui_default_bmp_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
-    if (page == NULL) return;
+    if (page == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
-    if (dat != NULL) {
+    if (dat != ESGUI_NULL) {
         anim_stop_all(&dat->title_scroll_x);
         anim_stop_all(&page->items[0].x);
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->label_anim_y);
-        popup_data_free(page->draw_data);
-        page->draw_data = NULL;
+        popup_data_free();
+        page->draw_data = ESGUI_NULL;
     }
-    page->render_ctx = NULL;
+    page->render_ctx = ESGUI_NULL;
 }
 
 static const esgui_page_vtable_t bmp_list_scroll_title_popwindow_vtable = {
     .on_create                = esgui_default_bmp_list_scroll_title_popwindow_on_create,
     .on_destroy               = esgui_default_bmp_list_scroll_title_popwindow_on_destroy,
     .on_draw                  = esgui_default_bmp_list_scroll_title_popwindow_on_draw,
-    .special_item_draw        = NULL,
-    .get_special_item_draw_w  = NULL,
+    .special_item_draw        = ESGUI_NULL,
+    .get_special_item_draw_w  = ESGUI_NULL,
     .on_input                 = esgui_default_bmp_list_popwindow_on_input,
     .on_focus_change          = esgui_default_bmp_list_popwindow_on_focus_change,
     .on_page_chenge           = esgui_default_bmp_list_popwindow_on_page_change,
@@ -3635,16 +3635,16 @@ static const esgui_page_vtable_t bmp_list_scroll_title_popwindow_vtable = {
  * @brief 创建 BMP 列表弹窗滚动标题版本
  */
 void ESGUI_DefaultBMPListScrollTitlePopWindowCreate(ESGUI_PopWindow_T *window, const char *title,
-    uint16_t window_w, uint16_t window_h,
-    ESGUI_MenuItem_T *items, size_t item_num) {
-    if (window == NULL || items == NULL || item_num == 0) return;
+    eui_uint16_t window_w, eui_uint16_t window_h,
+    ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (window == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
     memset(window, 0, sizeof(ESGUI_PopWindow_T));
     window->vtbl     = &bmp_list_scroll_title_popwindow_vtable;
-    window->title    = (title == NULL) ? "" : title;
+    window->title    = (title == ESGUI_NULL) ? "" : title;
     window->window_w = window_w;
     window->window_h = window_h;
     window->items    = items;
-    window->item_num = (uint16_t)item_num;
+    window->item_num = (eui_uint16_t)item_num;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = popup_data_alloc();
     window->draw_data = dat;
 }
@@ -3688,16 +3688,16 @@ typedef union {
 /** @brief 通用弹窗数据静态实例 */
 static ESGUI_PopWindowData_Union s_popup_data;
 /** @brief 弹窗数据占用标志（0=空闲，1=占用） */
-static uint8_t s_popup_data_busy = 0;
+static eui_uint8_t s_popup_data_busy = 0;
 
 /**
  * @brief 分配通用弹窗数据内存
- * @return 数据指针，若已有弹窗在运行则返回 NULL
+ * @return 数据指针，若已有弹窗在运行则返回 ESGUI_NULL
  * @note  自动清零内存，确保初始状态干净
  */
 static void* popup_data_alloc()
 {
-    if (s_popup_data_busy) return NULL;
+    if (s_popup_data_busy) return ESGUI_NULL;
     s_popup_data_busy = 1;
     memset(&s_popup_data, 0, sizeof(s_popup_data));
     return (void*)&s_popup_data;

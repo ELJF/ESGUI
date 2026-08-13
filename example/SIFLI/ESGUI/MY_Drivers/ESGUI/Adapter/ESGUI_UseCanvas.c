@@ -6,9 +6,6 @@
 #include "../ESGUI_Anim.h"
 #include "../ESGUI_Menu.h"
 
-#define NULL ((void*)0)
-#define __WEAK __attribute__((weak))
-
 /**
  * @brief 条带刷新回调（弱定义）
  * @param x0   刷新区域左上角 X 坐标
@@ -22,7 +19,7 @@
  * 说明：此函数为 __WEAK 弱定义，用户必须在其他地方提供具体实现，
  * 用于将 canvas 计算好的条带数据发送到物理屏幕。
  */
-__WEAK void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const uint8_t* buff,void* user) {
+__WEAK void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const eui_uint8_t* buff,void* user) {
 }
 
 /**
@@ -35,7 +32,7 @@ __WEAK void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const uint8_t* buff
  * 弹出裁剪区，最后通过 ESGUI_UseCanvasFlush 送屏。实现分块刷新以降低内存占用。
  */
 void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
-    if (ui == NULL || page == NULL)return;
+    if (ui == ESGUI_NULL || page == ESGUI_NULL)return;
 
     CanvasStripIter *canvas_it = (CanvasStripIter*)ui->draw_data;
 
@@ -53,7 +50,7 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
         ESGUI_MenuPage_T *menu_page = (ESGUI_MenuPage_T*)page;
         menu_page->vtbl->on_draw(menu_page);
 
-        if (window != NULL) {
+        if (window != ESGUI_NULL) {
             ((ESGUI_PopWindow_T*)window)->vtbl->on_draw(window);
         }
 
@@ -61,7 +58,7 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
         canvas_clip_pop(canvas_it->canvas);
 
         /* 5. 送屏当前条带 */
-        canvas_strip_iter_flush(canvas_it, ESGUI_UseCanvasFlush, NULL);
+        canvas_strip_iter_flush(canvas_it, ESGUI_UseCanvasFlush, ESGUI_NULL);
     }
 }
 
@@ -74,7 +71,7 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
  * 说明：驱动动画引擎更新一帧；若有动画在运行，自动标记需要刷新，
  * 确保下一 Tick 会重绘画面。
  */
-void ESGUI_AnimTick_CB(ESGUI_T *ui, uint32_t tick) {
+void ESGUI_AnimTick_CB(ESGUI_T *ui, eui_uint32_t tick) {
     /* 必须先更新动画，再查询状态，否则 pending_done 会滞后一帧 */
     anim_update(tick);
 
@@ -114,10 +111,10 @@ void ESGUI_AnimTick_CB(ESGUI_T *ui, uint32_t tick) {
 void ESGUI_BindCanvas(ESGUI_T *ui,
                         Canvas *canva,
                         CanvasStripIter *canvas_it,
-                        uint8_t *buff,
-                        uint16_t screen_w,
-                        uint16_t screen_h,
-                        uint16_t strip_h){
+                        eui_uint8_t *buff,
+                        eui_uint16_t screen_w,
+                        eui_uint16_t screen_h,
+                        eui_uint16_t strip_h){
 
     canvas_it->canvas = canva;
     canvas_init(canvas_it->canvas,buff,screen_w,screen_h);

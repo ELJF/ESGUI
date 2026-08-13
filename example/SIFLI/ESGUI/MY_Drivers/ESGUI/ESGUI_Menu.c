@@ -14,7 +14,7 @@
  * 并使能菜单运行标志。
  */
 void ESGUI_MenuCtrlInit(ESGUI_MenuCtrl_T *emc) {
-    if (emc == NULL) return;
+    if (emc == ESGUI_NULL) return;
     memset(emc,0,sizeof(*emc));
     emc->repeat_delay_ms = 300;
     emc->running_en = 1;
@@ -31,7 +31,7 @@ void ESGUI_MenuCtrlInit(ESGUI_MenuCtrl_T *emc) {
  * 才执行压栈操作。压栈后自动标记需要刷新。
  */
 void ESGUI_MenuCtrlPushPage(ESGUI_MenuCtrl_T *emc, ESGUI_MenuPage_T *page) {
-    if (emc == NULL || page == NULL) return;
+    if (emc == ESGUI_NULL || page == ESGUI_NULL) return;
 
     if ((emc->menu_depth < ESGUI_MAX_MENU_DEPTH) && (emc->running_en == 1)) {
         emc->page_stack[emc->menu_depth] = page;
@@ -49,7 +49,7 @@ void ESGUI_MenuCtrlPushPage(ESGUI_MenuCtrl_T *emc, ESGUI_MenuPage_T *page) {
  * 出栈前调用当前页面的 on_destroy 虚函数进行资源释放。
  */
 void ESGUI_MenuCtrlPopPage(ESGUI_MenuCtrl_T *emc) {
-    if (emc == NULL || emc->running_en == 0) return;
+    if (emc == ESGUI_NULL || emc->running_en == 0) return;
 
     if (emc->menu_depth > 1) {
         ESGUI_MenuPage_T *page = emc->page_stack[emc->menu_depth - 1];  //暂存当前页面指针
@@ -72,7 +72,7 @@ void ESGUI_MenuCtrlPopPage(ESGUI_MenuCtrl_T *emc) {
  * 说明：弹窗显示后，输入事件优先路由到弹窗处理，形成模态覆盖效果。
  */
 void ESGUI_MenuCtrlShowPopWindow(ESGUI_MenuCtrl_T *emc, ESGUI_PopWindow_T *popup) {
-    if (emc == NULL || popup == NULL || emc->running_en == 0) return;
+    if (emc == ESGUI_NULL || popup == ESGUI_NULL || emc->running_en == 0) return;
 
     emc->pop_window = popup;
     emc->pop_window_en = 1;
@@ -87,13 +87,13 @@ void ESGUI_MenuCtrlShowPopWindow(ESGUI_MenuCtrl_T *emc, ESGUI_PopWindow_T *popup
  * 说明：清除弹窗指针并禁用弹窗标志，恢复页面正常输入响应。
  */
 void ESGUI_MenuCtrlClosePopWindow(ESGUI_MenuCtrl_T *emc) {
-    if (emc == NULL || emc->running_en == 0) return;
+    if (emc == ESGUI_NULL || emc->running_en == 0) return;
 
     if (emc->pop_window && emc->pop_window->vtbl->on_destroy) {
         emc->pop_window->vtbl->on_destroy((ESGUI_MenuPage_T*)emc->pop_window);
     }
 
-    emc->pop_window = NULL;
+    emc->pop_window = ESGUI_NULL;
     emc->pop_window_en = 0;
     emc->need_refresh = 1;
 }
@@ -109,7 +109,7 @@ void ESGUI_MenuCtrlClosePopWindow(ESGUI_MenuCtrl_T *emc) {
  */
 void ESGUI_MenuCtrlHandleAction(ESGUI_MenuCtrl_T *emc, ESGUI_MenuAction_T *act)
 {
-    if (emc == NULL || act == NULL || emc->running_en == 0) return;
+    if (emc == ESGUI_NULL || act == ESGUI_NULL || emc->running_en == 0) return;
 
     switch(act->act) {
         case ACT_NONE:
@@ -168,7 +168,7 @@ void ESGUI_MenuCtrlHandleAction(ESGUI_MenuCtrl_T *emc, ESGUI_MenuAction_T *act)
  * @return true=成功进入延迟状态；false=条件不满足
  */
 bool ESGUI_MenuCtrlPreparePopPage(ESGUI_MenuCtrl_T *emc) {
-    if (emc == NULL || emc->running_en == 0) return false;
+    if (emc == ESGUI_NULL || emc->running_en == 0) return false;
     if (emc->menu_depth == 0) return false;
     if (emc->pending_pop) return false;  // 已有待处理动作，防止重复
 
@@ -189,7 +189,7 @@ bool ESGUI_MenuCtrlPreparePopPage(ESGUI_MenuCtrl_T *emc) {
  * @param emc 菜单控制器实例指针
  */
 void ESGUI_MenuCtrlExecPendingPop(ESGUI_MenuCtrl_T *emc) {
-    if (emc == NULL || !emc->pending_pop) return;
+    if (emc == ESGUI_NULL || !emc->pending_pop) return;
 
     ESGUI_MenuPage_T *page = emc->pending_destroy_page;
     bool was_popup = (emc->pop_window_en && emc->pop_window &&

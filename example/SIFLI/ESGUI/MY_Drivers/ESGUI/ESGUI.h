@@ -7,6 +7,7 @@
 
 #include "ESGUI_Menu.h"
 #include "ESGUI_DefaultVtbConfig.h"
+#include "ESGUI_Def.h"
 
 typedef struct esgui ESGUI_T;
 
@@ -18,7 +19,7 @@ typedef enum {
 
 
 typedef void (*refresh)(struct esgui *ui,void *page,void *window);
-typedef void (*anim_tick)(struct esgui *ui,uint32_t tick);
+typedef void (*anim_tick)(struct esgui *ui,eui_uint32_t tick);
 
 
 typedef struct esgui {
@@ -40,9 +41,9 @@ void ESGUI_Init(ESGUI_T *ui,
                 );
 
 /* 外部输入入口：在主循环或按键中断里调用 */
-void ESGUI_FeedKey(ESGUI_T *ui, ESGUI_EventCode_t key,uint32_t now_ms);
+void ESGUI_FeedKey(ESGUI_T *ui, ESGUI_EventCode_t key,eui_uint32_t now_ms);
 
 /* 主循环调用，负责绘制和动画更新 */
-void ESGUI_Tick(ESGUI_T *ui, uint32_t now_ms);
+void ESGUI_Tick(ESGUI_T *ui, eui_uint32_t now_ms);
 
 #endif //ESGUI_ESGUI_H

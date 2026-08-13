@@ -6,6 +6,7 @@
 #define ESGUI_ESGUI_BSP_BMP_H
 
 #include "ESGUI_BSP_Canvas.h"
+#include "ESGUI_Def.h"
 
 /**
  * Bitmap: 1bpp 位图描述符（页式格式）
@@ -20,14 +21,14 @@
  */
 typedef struct {
     int w, h;               // 位图宽高（像素）
-    const uint8_t *data;    // 页式位图数据（只读，存放于 Flash/ROM）
+    const eui_uint8_t *data;    // 页式位图数据（只读，存放于 Flash/ROM）
 } Bitmap;
 
 /* ==================== 位图（页式格式） ==================== */
 
-void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color);
+void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, eui_uint8_t color);
 void eui_draw_bitmap_transparent(Canvas *c, int x, int y, const Bitmap *bmp,
-                             uint8_t color, uint8_t transparent_color);
+                             eui_uint8_t color, eui_uint8_t transparent_color);
 void eui_draw_bitmap_invert(Canvas *c, int x, int y, const Bitmap *bmp);
 
 

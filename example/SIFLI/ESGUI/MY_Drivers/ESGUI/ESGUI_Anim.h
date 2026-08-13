@@ -5,7 +5,7 @@
 #ifndef ESGUI_ESGUI_ANIM_H
 #define ESGUI_ESGUI_ANIM_H
 
-#include "stdint.h"
+#include "ESGUI_Def.h"
 #include "stdbool.h"
 
 #ifndef ANIM_MAX_COUNT
@@ -76,7 +76,7 @@ struct anim_t;
  *
  * 说明：使用 0~1000 千分比而非 0.0~1.0 浮点，是为了适配无 FPU 的 MCU。
  */
-typedef int32_t (*anim_path_cb_t)(const struct anim_t* a, int32_t p1000);
+typedef eui_int32_t (*anim_path_cb_t)(const struct anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 属性写入回调，每帧被调用一次
@@ -87,7 +87,7 @@ typedef int32_t (*anim_path_cb_t)(const struct anim_t* a, int32_t p1000);
  * 你在这个函数里把 value 写进对象的属性，例如：
  *   ((menu_item_t*)var)->x = value;
  */
-typedef void (*anim_exec_cb_t)(void* var, int32_t value);
+typedef void (*anim_exec_cb_t)(void* var, eui_int32_t value);
 
 /**
  * @brief 动画结束回调，动画彻底完成后调用一次
@@ -114,31 +114,31 @@ typedef struct anim_t {
 
     /* ---- 用户关联 ---- */
     void*           var;        /**< 用户数据指针：关联的目标对象，原样透传给 exec_cb 和 ready_cb */
-    anim_exec_cb_t  exec_cb;    /**< 逐帧回调：每帧计算出新值后调用，用于将值写入对象属性。不可为 NULL */
-    anim_ready_cb_t ready_cb;   /**< 结束回调：动画完全结束后调用一次，可为 NULL。用于串联动画或触发音效 */
+    anim_exec_cb_t  exec_cb;    /**< 逐帧回调：每帧计算出新值后调用，用于将值写入对象属性。不可为 ESGUI_NULL */
+    anim_ready_cb_t ready_cb;   /**< 结束回调：动画完全结束后调用一次，可为 ESGUI_NULL。用于串联动画或触发音效 */
 
     /* ---- 数值定义 ---- */
-    int32_t         start;      /**< 起始值：动画开始时 exec_cb 收到的第一个值。可大于 end，表示递减 */
-    int32_t         end;        /**< 目标值：动画结束时 exec_cb 收到的最后一个值 */
-    int32_t         current;    /**< 当前值：本帧计算后的插值结果，仅在运行时有效 */
+    eui_int32_t         start;      /**< 起始值：动画开始时 exec_cb 收到的第一个值。可大于 end，表示递减 */
+    eui_int32_t         end;        /**< 目标值：动画结束时 exec_cb 收到的最后一个值 */
+    eui_int32_t         current;    /**< 当前值：本帧计算后的插值结果，仅在运行时有效 */
 
     /* ---- 时间控制 ---- */
-    uint32_t        start_time; /**< 启动时间戳：记录动画实际开始计时的系统 tick（ms）。0 表示尚未初始化 */
-    uint32_t        duration;   /**< 持续时间：单次动画（去程）的时长，单位毫秒。必须大于 0 */
-    uint32_t        delay;      /**< 启动延迟：从调用 anim_start 到真正开始计时的等待时间，单位毫秒。仅首次生效 */
+    eui_uint32_t        start_time; /**< 启动时间戳：记录动画实际开始计时的系统 tick（ms）。0 表示尚未初始化 */
+    eui_uint32_t        duration;   /**< 持续时间：单次动画（去程）的时长，单位毫秒。必须大于 0 */
+    eui_uint32_t        delay;      /**< 启动延迟：从调用 anim_start 到真正开始计时的等待时间，单位毫秒。仅首次生效 */
 
     /* ---- 重复与往返 ---- */
-    uint16_t        repeat_cnt; /**< 剩余重复次数：运行时的递减计数器。0xFFFF 表示无限循环 */
-    uint16_t        repeat_total; /**< 总重复次数：配置时写入的原始值，用于需要时重置或查询 */
+    eui_uint16_t        repeat_cnt; /**< 剩余重复次数：运行时的递减计数器。0xFFFF 表示无限循环 */
+    eui_uint16_t        repeat_total; /**< 总重复次数：配置时写入的原始值，用于需要时重置或查询 */
     bool            playback;   /**< 往返模式标志：true = 到 end 后自动返回 start（一去一回算一次 repeat）；false = 单向重复 */
 
     /* ---- 缓动曲线 ---- */
     anim_path_type_t path_type; /**< 缓动类型：选择内置曲线或 ANIM_PATH_CUSTOM */
-    anim_path_cb_t   path_custom; /**< 自定义曲线函数指针：当 path_type = CUSTOM 时生效，否则可为 NULL */
+    anim_path_cb_t   path_custom; /**< 自定义曲线函数指针：当 path_type = CUSTOM 时生效，否则可为 ESGUI_NULL */
 
     /* ---- 是否必须完成 ---- */
     bool must_complete;         // 新增：true = 该动画必须完成，才允许页面销毁
-    uint8_t _completion_id;     // 内部使用：框架自动分配的标志位 ID
+    eui_uint8_t _completion_id;     // 内部使用：框架自动分配的标志位 ID
 } anim_t;
 
 /* ========== 系统级 API ========== */
@@ -155,8 +155,8 @@ void anim_init(void);
 
 /**
  * @brief 启动一个动画
- * @param a 用户填写的动画配置。必须是已填充的 anim_t 结构体，exec_cb 不能为 NULL
- * @return  动画池中的真实实例指针；NULL 表示池满，启动失败
+ * @param a 用户填写的动画配置。必须是已填充的 anim_t 结构体，exec_cb 不能为 ESGUI_NULL
+ * @return  动画池中的真实实例指针；ESGUI_NULL 表示池满，启动失败
  *
  * 说明：
  * - 函数内部会把 *a 整份拷贝到静态数组的空闲槽位，你的临时变量 a 随后可销毁
@@ -167,7 +167,7 @@ anim_t* anim_start(anim_t* a);
 
 /**
  * @brief 停止并释放指定动画
- * @param a anim_start() 返回的指针。传 NULL 安全无操作
+ * @param a anim_start() 返回的指针。传 ESGUI_NULL 安全无操作
  * @return 无
  *
  * 说明：动画立即停止，exec_cb 不再被调用，节点归还空闲链表。
@@ -181,7 +181,7 @@ void anim_stop(anim_t* a);
  * @return 无
  *
  * 说明：遍历活跃链表，var 匹配的全部停止。用于页面切换时批量清理。
- * 传 NULL 会匹配所有 var 为 NULL 的动画。
+ * 传 ESGUI_NULL 会匹配所有 var 为 ESGUI_NULL 的动画。
  */
 void anim_stop_all(void* var);
 
@@ -195,7 +195,7 @@ void anim_stop_all(void* var);
  * - tick 由用户提供，通常来自 SysTick 或 RTOS 的 tick 计数
  * - 首次调用时，会把活跃链表中各节点的 start_time 初始化为 tick
  */
-void anim_update(uint32_t tick);
+void anim_update(eui_uint32_t tick);
 
 
 
@@ -235,7 +235,7 @@ bool anim_is_running_var(void* var);
  *
  * 用途：调试或性能监控，查看动画系统负载。
  */
-uint8_t anim_get_running_count(void);
+eui_uint8_t anim_get_running_count(void);
 
 
 /**
@@ -246,7 +246,7 @@ uint8_t anim_get_running_count(void);
 bool anim_all_must_complete_done(void);
 
 
-bool anim_set_end(anim_t* a, int32_t end, uint32_t duration);
+bool anim_set_end(anim_t* a, eui_int32_t end, eui_uint32_t duration);
 
 
 
@@ -264,7 +264,7 @@ anim_t* anim_set_var(anim_t* a, void* var);
 /**
  * @brief 设置每帧属性写入回调
  * @param a  目标动画配置
- * @param cb 回调函数指针，不能为 NULL，否则 anim_start 会失败
+ * @param cb 回调函数指针，不能为 ESGUI_NULL，否则 anim_start 会失败
  * @return   返回 a 自身，支持链式调用
  */
 anim_t* anim_set_exec_cb(anim_t* a, anim_exec_cb_t cb);
@@ -272,7 +272,7 @@ anim_t* anim_set_exec_cb(anim_t* a, anim_exec_cb_t cb);
 /**
  * @brief 设置动画结束通知回调
  * @param a  目标动画配置
- * @param cb 结束回调，可为 NULL（表示不需要通知）
+ * @param cb 结束回调，可为 ESGUI_NULL（表示不需要通知）
  * @return   返回 a 自身，支持链式调用
  */
 anim_t* anim_set_ready_cb(anim_t* a, anim_ready_cb_t cb);
@@ -286,7 +286,7 @@ anim_t* anim_set_ready_cb(anim_t* a, anim_ready_cb_t cb);
  *
  * 说明：start 可以大于 end，表示数值递减。例如 start=240, end=20 表示向左滑动。
  */
-anim_t* anim_set_values(anim_t* a, int32_t start, int32_t end);
+anim_t* anim_set_values(anim_t* a, eui_int32_t start, eui_int32_t end);
 
 /**
  * @brief 设置单次动画持续时间
@@ -296,7 +296,7 @@ anim_t* anim_set_values(anim_t* a, int32_t start, int32_t end);
  *
  * 说明：这是"去程"的时间。若开启 playback，回程时间与此相同。
  */
-anim_t* anim_set_time(anim_t* a, uint32_t duration);
+anim_t* anim_set_time(anim_t* a, eui_uint32_t duration);
 
 /**
  * @brief 设置启动延迟
@@ -306,7 +306,7 @@ anim_t* anim_set_time(anim_t* a, uint32_t duration);
  *
  * 说明：delay 只影响第一次启动。repeat 和 playback 的回程不会重新延迟。
  */
-anim_t* anim_set_delay(anim_t* a, uint32_t delay);
+anim_t* anim_set_delay(anim_t* a, eui_uint32_t delay);
 
 /**
  * @brief 设置重复次数和往返模式
@@ -320,7 +320,7 @@ anim_t* anim_set_delay(anim_t* a, uint32_t delay);
  * - playback=true 时，去程+回程 = 一次完整 repeat
  * - playback=false 时，每次都是从 start 到 end，不会自动返回
  */
-anim_t* anim_set_repeat(anim_t* a, uint16_t cnt, bool playback);
+anim_t* anim_set_repeat(anim_t* a, eui_uint16_t cnt, bool playback);
 
 /**
  * @brief 设置缓动曲线类型
@@ -349,7 +349,7 @@ anim_t* anim_set_must_complete(anim_t* a, bool en);
  * @param p1000 线性进度 [0, 1000]
  * @return      等于 p1000，无变换
  */
-int32_t anim_path_linear_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_linear_impl(const anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 缓入：起步慢，越来越快
@@ -357,7 +357,7 @@ int32_t anim_path_linear_impl(const anim_t* a, int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      p1000 的平方除以 1000，范围 [0, 1000]
  */
-int32_t anim_path_ease_in_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_ease_in_impl(const anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 缓出：起步快，接近目标时减速
@@ -365,7 +365,7 @@ int32_t anim_path_ease_in_impl(const anim_t* a, int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      开口向下抛物线，范围 [0, 1000]
  */
-int32_t anim_path_ease_out_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_ease_out_impl(const anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 缓入缓出：先加速后减速
@@ -373,7 +373,7 @@ int32_t anim_path_ease_out_impl(const anim_t* a, int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      分段二次曲线，范围 [0, 1000]
  */
-int32_t anim_path_ease_in_out_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_ease_in_out_impl(const anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 冲过：超过目标再回正
@@ -381,7 +381,7 @@ int32_t anim_path_ease_in_out_impl(const anim_t* a, int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      范围 [0, 1100]，前 70% 冲到 110%，后 30% 拉回 100%
  */
-int32_t anim_path_overshoot_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_overshoot_impl(const anim_t* a, eui_int32_t p1000);
 
 /**
  * @brief 弹跳：多次反弹逐渐衰减
@@ -389,26 +389,26 @@ int32_t anim_path_overshoot_impl(const anim_t* a, int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      分段线性模拟弹跳，最终收敛到 1000
  */
-int32_t anim_path_bounce_impl(const anim_t* a, int32_t p1000);
+eui_int32_t anim_path_bounce_impl(const anim_t* a, eui_int32_t p1000);
 
 #if MORE_ANIM_FUNK
-int32_t anim_path_linear(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_quad_in(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_quad_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_quad_inout(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_cubic_in(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_cubic_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_cubic_inout(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_sine_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_sine_in(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_sine_inout(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_expo_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_expo_in(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_back_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_back_in(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_elastic_out(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_step(const struct anim_t* a, int32_t p1000);
-int32_t anim_path_pause_mid(const struct anim_t* a, int32_t p1000);
+eui_int32_t anim_path_linear(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_quad_in(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_quad_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_quad_inout(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_cubic_in(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_cubic_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_cubic_inout(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_sine_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_sine_in(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_sine_inout(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_expo_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_expo_in(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_back_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_back_in(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_elastic_out(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_step(const struct anim_t* a, eui_int32_t p1000);
+eui_int32_t anim_path_pause_mid(const struct anim_t* a, eui_int32_t p1000);
 #endif
 
 

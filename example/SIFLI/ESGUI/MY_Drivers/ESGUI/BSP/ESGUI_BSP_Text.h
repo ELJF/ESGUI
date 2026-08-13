@@ -15,12 +15,12 @@
  *   type=1: 稀疏列表（如只包含 "0123456789" 或几个中文）
  */
 typedef struct {
-    uint32_t range_start;        // 起始 Unicode（type=0 用）
-    uint16_t range_length;       // 连续长度（type=0 用）
-    uint16_t glyph_id_start;     // 对应 glyph_id 起始
-    const uint16_t *unicode_list; // 稀疏码点表（type=1 用）
-    uint16_t list_length;        // 稀疏表长度
-    uint8_t type;                // 0=连续, 1=稀疏
+    eui_uint32_t range_start;        // 起始 Unicode（type=0 用）
+    eui_uint16_t range_length;       // 连续长度（type=0 用）
+    eui_uint16_t glyph_id_start;     // 对应 glyph_id 起始
+    const eui_uint16_t *unicode_list; // 稀疏码点表（type=1 用）
+    eui_uint16_t list_length;        // 稀疏表长度
+    eui_uint8_t type;                // 0=连续, 1=稀疏
 } FontCmap;
 
 /**
@@ -36,10 +36,10 @@ typedef struct {
  *   由字模生成工具按页式格式计算。
  */
 typedef struct {
-    uint16_t bitmap_index;       // 页式位图 blob 中的字节偏移
-    uint8_t  adv_w;              // 水平步进（像素）
-    int8_t   ofs_x, ofs_y;       // 位图相对于光标原点的偏移
-    uint8_t  box_w, box_h;       // 位图宽高（像素）
+    eui_uint32_t bitmap_index;       // 页式位图 blob 中的字节偏移
+    eui_uint8_t  adv_w;              // 水平步进（像素）
+    eui_int8_t   ofs_x, ofs_y;       // 位图相对于光标原点的偏移
+    eui_uint8_t  box_w, box_h;       // 位图宽高（像素）
 } FontGlyph;
 
 /**
@@ -52,25 +52,25 @@ typedef struct {
  *   此时整个字符串渲染速度接近 memcpy。
  */
 typedef struct {
-    const uint8_t *bitmap;       // 页式位图 blob（所有字模首尾相接）
+    const eui_uint8_t *bitmap;       // 页式位图 blob（所有字模首尾相接）
     const FontGlyph *glyphs;     // 字形描述符数组
     const FontCmap *cmaps;       // 映射表数组
-    uint8_t cmap_num;            // 映射表数量
-    uint8_t line_height;         // 行高（含行距）
-    int8_t  base_line;           // 基线到行顶的距离（向下为正）
+    eui_uint32_t cmap_num;            // 映射表数量
+    eui_uint8_t line_height;         // 行高（含行距）
+    eui_int8_t  base_line;           // 基线到行顶的距离（向下为正）
 } Font;
 
 /* 查找 glyph_id，未找到返回 -1 */
-int16_t eui_font_get_glyph_id(const Font *font, uint32_t unicode);
+eui_int16_t eui_font_get_glyph_id(const Font *font, eui_uint32_t unicode);
 
 /* 计算字符串总宽度（像素） */
 int eui_get_text_width(const Font *font, const char *text);
 
 /* 绘制文本，返回实际占用宽度（像素） */
-int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, uint8_t color);
+int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, eui_uint8_t color);
 
 /* 绘制文本，超出 max_w 自动截断，返回实际宽度 */
-int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *text, uint8_t color, int max_w);
+int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *text, eui_uint8_t color, int max_w);
 
 /**
  * get_text_height: 计算字符串在指定字体下的总显示高度

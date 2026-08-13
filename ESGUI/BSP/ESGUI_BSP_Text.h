@@ -36,7 +36,7 @@ typedef struct {
  *   由字模生成工具按页式格式计算。
  */
 typedef struct {
-    eui_uint16_t bitmap_index;       // 页式位图 blob 中的字节偏移
+    eui_uint32_t bitmap_index;       // 页式位图 blob 中的字节偏移
     eui_uint8_t  adv_w;              // 水平步进（像素）
     eui_int8_t   ofs_x, ofs_y;       // 位图相对于光标原点的偏移
     eui_uint8_t  box_w, box_h;       // 位图宽高（像素）
@@ -55,7 +55,7 @@ typedef struct {
     const eui_uint8_t *bitmap;       // 页式位图 blob（所有字模首尾相接）
     const FontGlyph *glyphs;     // 字形描述符数组
     const FontCmap *cmaps;       // 映射表数组
-    eui_uint8_t cmap_num;            // 映射表数量
+    eui_uint32_t cmap_num;            // 映射表数量
     eui_uint8_t line_height;         // 行高（含行距）
     eui_int8_t  base_line;           // 基线到行顶的距离（向下为正）
 } Font;
