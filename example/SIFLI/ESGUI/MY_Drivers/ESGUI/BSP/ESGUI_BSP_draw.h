@@ -66,8 +66,8 @@ void eui_draw_round_rect_box(Canvas *c, int x1, int y1, int x2, int y2, int r, E
 
 
 /* ==================== 显存操作 ==================== */
-void canvas_apply_transition_mask(Canvas *c, uint8_t level);
-void canvas_apply_zoom_mask(Canvas *c, uint8_t level);
+void canvas_apply_transition_mask(Canvas *c, eui_uint8_t level);
+void canvas_apply_zoom_mask(Canvas *c, eui_uint8_t level);
 
 
 

@@ -21,8 +21,8 @@
  *   0xC0/0xC8（COM 扫描方向）和 0xA0/0xA1（SEG 重映射）控制。
  *   通常配置 0xA1+0xC8 使 (0,0) 在左上角，此时 bit0 对应最上方像素。
  */
-static inline uint8_t _bit_mask(int y) {
-    return (uint8_t)(1u << ((y) & 7));
+static inline eui_uint8_t _bit_mask(int y) {
+    return (eui_uint8_t)(1u << ((y) & 7));
 }
 
 /**
@@ -38,7 +38,7 @@ static inline uint8_t _bit_mask(int y) {
  *     地址 = buf + 0*128 + 5 = buf[5]
  *     掩码 = 1 << (9&7) = 1<<1 = 0x02
  */
-static inline uint8_t* _buf_ptr(Canvas *c, int x, int y) {
+static inline eui_uint8_t* _buf_ptr(Canvas *c, int x, int y) {
     return &c->buf[((y - c->buf_area.y1) >> 3) * c->stride + x];
 }
 
@@ -56,8 +56,8 @@ static inline uint8_t* _buf_ptr(Canvas *c, int x, int y) {
  *     - 反色文字叠加
  */
 static inline void _raw_pixel(Canvas *c, int x, int y, EUI_DrawMode mode) {
-    uint8_t *p = _buf_ptr(c, x, y);
-    uint8_t m = _bit_mask(y);
+    eui_uint8_t *p = _buf_ptr(c, x, y);
+    eui_uint8_t m = _bit_mask(y);
 
     switch (mode) {
         case EUI_MODE_XOR:
@@ -81,14 +81,14 @@ static inline void _raw_pixel(Canvas *c, int x, int y, EUI_DrawMode mode) {
 
 /**
  * @brief  绘制单个像素点（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x      像素 X 坐标
  * @param  y      像素 Y 坐标
  * @param  mode   绘制模式：EUI_MODE_SET EUI_MODE_CLER EUI_MODE_XOR
  * @note   XOR 模式下仅翻转目标位
  */
 void eui_draw_pixel(Canvas *c, int x, int y, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     const Area *clip = canvas_clip_top(c);
     if (x < clip->x1 || x > clip->x2 || y < clip->y1 || y > clip->y2) return;
@@ -98,7 +98,7 @@ void eui_draw_pixel(Canvas *c, int x, int y, EUI_DrawMode mode) {
 
 /**
  * @brief  绘制水平线（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x1     起点 X 坐标
  * @param  x2     终点 X 坐标
  * @param  y      Y 坐标
@@ -106,13 +106,13 @@ void eui_draw_pixel(Canvas *c, int x, int y, EUI_DrawMode mode) {
  * @note   XOR 模式下对整段水平线内的所有像素位进行异或翻转
  */
 void eui_draw_hline(Canvas *c, int x1, int x2, int y, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     CANVAS_CLIP(c, x1, y, x2, y);
     if (y < c->buf_area.y1 || y > c->buf_area.y2) return;
 
-    uint8_t *p = _buf_ptr(c, x1, y);
-    uint8_t m = _bit_mask(y);
+    eui_uint8_t *p = _buf_ptr(c, x1, y);
+    eui_uint8_t m = _bit_mask(y);
 
     switch (mode) {
         case EUI_MODE_SET:
@@ -135,7 +135,7 @@ void eui_draw_hline(Canvas *c, int x1, int x2, int y, EUI_DrawMode mode) {
 
 /**
  * @brief  绘制垂直线（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x      X 坐标
  * @param  y1     起点 Y 坐标
  * @param  y2     终点 Y 坐标
@@ -144,7 +144,7 @@ void eui_draw_hline(Canvas *c, int x1, int x2, int y, EUI_DrawMode mode) {
  *         完整页可用 0xFF 异或实现整字节翻转，保持高效
  */
 void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     CANVAS_CLIP(c, x, y1, x, y2);
 
@@ -154,11 +154,11 @@ void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
 
     int page1 = y1 >> 3;
     int page2 = y2 >> 3;
-    uint8_t *p = _buf_ptr(c, x, y1);
+    eui_uint8_t *p = _buf_ptr(c, x, y1);
 
     if (page1 == page2) {
         /* 同一页内：生成部分掩码 */
-        uint8_t m = ((1u << ((y2 & 7) + 1)) - 1) & ~((1u << (y1 & 7)) - 1);
+        eui_uint8_t m = ((1u << ((y2 & 7) + 1)) - 1) & ~((1u << (y1 & 7)) - 1);
 
         switch (mode) {
             case EUI_MODE_SET:
@@ -179,7 +179,7 @@ void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
 
     } else {
         /* 首部（部分页） */
-        uint8_t m1 = 0xFF << (y1 & 7);
+        eui_uint8_t m1 = 0xFF << (y1 & 7);
 
         switch (mode) {
             case EUI_MODE_SET:
@@ -225,7 +225,7 @@ void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
 
         /* 尾部（部分页） */
         if (page2 > page1) {
-            uint8_t m2 = (1u << ((y2 & 7) + 1)) - 1;
+            eui_uint8_t m2 = (1u << ((y2 & 7) + 1)) - 1;
 
             switch (mode) {
                 case EUI_MODE_SET:
@@ -251,7 +251,7 @@ void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
 
 /**
  * @brief  绘制任意直线（Bresenham 算法，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x0     起点 X 坐标
  * @param  y0     起点 Y 坐标
  * @param  x1     终点 X 坐标
@@ -260,7 +260,7 @@ void eui_draw_vline(Canvas *c, int x, int y1, int y2, EUI_DrawMode mode) {
  * @note   逐像素调用 eui_draw_pixel_ex，XOR 模式下每个像素独立翻转
  */
 void eui_draw_line(Canvas *c, int x0, int y0, int x1, int y1, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     int dx = abs(x1 - x0), sx = (x0 < x1) ? 1 : -1;
     int dy = abs(y1 - y0), sy = (y0 < y1) ? 1 : -1;
@@ -280,7 +280,7 @@ void eui_draw_line(Canvas *c, int x0, int y0, int x1, int y1, EUI_DrawMode mode)
 
 /**
  * @brief  绘制实心矩形（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x1     左上角 X 坐标
  * @param  y1     左上角 Y 坐标
  * @param  x2     右下角 X 坐标
@@ -291,7 +291,7 @@ void eui_draw_line(Canvas *c, int x0, int y0, int x1, int y1, EUI_DrawMode mode)
  *         - 部分页覆盖区域用掩码异或逐字节
  */
 void eui_draw_rect_fill(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     CANVAS_CLIP(c, x1, y1, x2, y2);
 
@@ -305,7 +305,7 @@ void eui_draw_rect_fill(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode m
 
     for (int page = page1; page <= page2; page++) {
         /* 计算该页内被矩形覆盖的 bit 掩码 */
-        uint8_t mask;
+        eui_uint8_t mask;
         if (page1 == page2) {
             mask = ((1u << ((y2 & 7) + 1)) - 1) & ~((1u << (y1 & 7)) - 1);
         } else if (page == page1) {
@@ -317,7 +317,7 @@ void eui_draw_rect_fill(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode m
         }
 
         /* 该行在 buf 中的起始地址（注意用 buf_area.y1 计算页偏移） */
-        uint8_t *row = c->buf + ((page - (c->buf_area.y1 >> 3)) * c->stride) + x1;
+        eui_uint8_t *row = c->buf + ((page - (c->buf_area.y1 >> 3)) * c->stride) + x1;
 
         switch (mode) {
             case EUI_MODE_SET:
@@ -351,7 +351,7 @@ void eui_draw_rect_fill(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode m
 
 /**
  * @brief  绘制矩形边框（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x1     左上角 X 坐标
  * @param  y1     左上角 Y 坐标
  * @param  x2     右下角 X 坐标
@@ -360,7 +360,7 @@ void eui_draw_rect_fill(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode m
  * @note   由两条水平线 + 两条垂直线组成，均支持 XOR 模式
  */
 void eui_draw_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     if (x1 > x2) { int t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int t = y1; y1 = y2; y2 = t; }
@@ -376,7 +376,7 @@ void eui_draw_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, EUI_DrawMod
 
 /**
  * @brief  绘制带边框的矩形（内部填充黑色，边框指定颜色，支持 XOR 模式）
- * @param  c             Canvas 指针，不能为 NULL
+ * @param  c             Canvas 指针，不能为 ESGUI_NULL
  * @param  x1            左上角 X 坐标
  * @param  y1            左上角 Y 坐标
  * @param  x2            右下角 X 坐标
@@ -387,7 +387,7 @@ void eui_draw_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, EUI_DrawMod
  *         整体效果为"边框反色"。
  */
 void eui_draw_rect_box(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     switch (mode) {
         case EUI_MODE_SET:
@@ -413,7 +413,7 @@ void eui_draw_rect_box(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode mo
 
 /**
  * @brief  绘制圆形边框（中点圆算法，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  cx     圆心 X 坐标
  * @param  cy     圆心 Y 坐标
  * @param  r      半径，必须 >= 0
@@ -421,7 +421,7 @@ void eui_draw_rect_box(Canvas *c, int x1, int y1, int x2, int y2,EUI_DrawMode mo
  * @note   8 路对称点均通过 eui_draw_pixel_ex 绘制，支持 XOR 翻转
  */
 void eui_draw_circle_stroke(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode) {
-    if (c == NULL || r < 0) return;
+    if (c == ESGUI_NULL || r < 0) return;
 
     int x = 0, y = r, d = 3 - 2 * r;
 
@@ -444,7 +444,7 @@ void eui_draw_circle_stroke(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode)
 
 /**
  * @brief  绘制实心圆（扫描线填充，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  cx     圆心 X 坐标
  * @param  cy     圆心 Y 坐标
  * @param  r      半径，必须 >= 0
@@ -452,7 +452,7 @@ void eui_draw_circle_stroke(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode)
  * @note   每行调用 eui_draw_hline_ex 填充，XOR 模式下整行翻转
  */
 void eui_draw_circle_fill(Canvas *c, int cx, int cy, int r,EUI_DrawMode mode) {
-    if (c == NULL || r < 0) return;
+    if (c == ESGUI_NULL || r < 0) return;
 
     int x = r, y = 0, err = 0;
 
@@ -472,14 +472,14 @@ void eui_draw_circle_fill(Canvas *c, int cx, int cy, int r,EUI_DrawMode mode) {
 
 /**
  * @brief  绘制带边框的实心圆（内部黑色，边框指定颜色，支持 XOR 模式）
- * @param  c             Canvas 指针，不能为 NULL
+ * @param  c             Canvas 指针，不能为 ESGUI_NULL
  * @param  cx            圆心 X 坐标
  * @param  cy            圆心 Y 坐标
  * @param  r             半径，必须 >= 0
  * @param  mode          绘制模式
  */
 void eui_draw_circle_box(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode) {
-    if (c == NULL || r < 0) return;
+    if (c == ESGUI_NULL || r < 0) return;
 
     switch (mode) {
         case EUI_MODE_SET:
@@ -506,7 +506,7 @@ void eui_draw_circle_box(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode) {
 
 /**
  * @brief  绘制三角形边框（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x0     顶点 0 X 坐标
  * @param  y0     顶点 0 Y 坐标
  * @param  x1     顶点 1 X 坐标
@@ -517,7 +517,7 @@ void eui_draw_circle_box(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode) {
  * @note   三条边分别调用 eui_draw_line_ex
  */
 void eui_draw_triangle_stroke(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     eui_draw_line(c, x0, y0, x1, y1, mode);
     eui_draw_line(c, x1, y1, x2, y2,  mode);
@@ -536,7 +536,7 @@ static inline void _tri_edge_scan(int y, int ex1, int ey1, int ex2, int ey2,
 
 /**
  * @brief  绘制实心三角形（扫描线填充，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x0     顶点 0 X 坐标
  * @param  y0     顶点 0 Y 坐标
  * @param  x1     顶点 1 X 坐标
@@ -547,7 +547,7 @@ static inline void _tri_edge_scan(int y, int ex1, int ey1, int ex2, int ey2,
  * @note   每行扫描出左右边界后，调用 eui_draw_hline_ex 填充，支持 XOR
  */
 void eui_draw_triangle_fill(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     if (y0 > y1) { int t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; }
     if (y0 > y2) { int t = x0; x0 = x2; x2 = t; t = y0; y0 = y2; y2 = t; }
@@ -578,7 +578,7 @@ void eui_draw_triangle_fill(Canvas *c, int x0, int y0, int x1, int y1, int x2, i
 
 /**
  * @brief  绘制带边框的实心三角形（内部黑色，边框指定颜色，支持 XOR 模式）
- * @param  c             Canvas 指针，不能为 NULL
+ * @param  c             Canvas 指针，不能为 ESGUI_NULL
  * @param  x0            顶点 0 X 坐标
  * @param  y0            顶点 0 Y 坐标
  * @param  x1            顶点 1 X 坐标
@@ -588,7 +588,7 @@ void eui_draw_triangle_fill(Canvas *c, int x0, int y0, int x1, int y1, int x2, i
  * @param  mode          绘制模式
  */
 void eui_draw_triangle_box(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     switch (mode) {
         case EUI_MODE_SET:
@@ -640,7 +640,7 @@ static void fill_circle_quadrant(Canvas *c, int cx, int cy, int r, int sx, int s
 
 /**
  * @brief  绘制圆角矩形边框（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x1     左上角 X 坐标
  * @param  y1     左上角 Y 坐标
  * @param  x2     右下角 X 坐标
@@ -650,7 +650,7 @@ static void fill_circle_quadrant(Canvas *c, int cx, int cy, int r, int sx, int s
  * @note   由两条水平线 + 两条垂直线 + 四个 1/8 圆弧组成，均支持 XOR
  */
 void eui_draw_round_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, int r, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     if (x1 > x2) { int t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int t = y1; y1 = y2; y2 = t; }
@@ -694,7 +694,7 @@ void eui_draw_round_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, int r
 
 /**
  * @brief  绘制实心圆角矩形（带裁剪，支持 XOR 模式）
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x1     左上角 X 坐标
  * @param  y1     左上角 Y 坐标
  * @param  x2     右下角 X 坐标
@@ -705,7 +705,7 @@ void eui_draw_round_rect_stroke(Canvas *c, int x1, int y1, int x2, int y2, int r
  *         所有子操作均通过 _ex 版本传递 mode 参数
  */
 void eui_draw_round_rect_fill(Canvas *c, int x1, int y1, int x2, int y2, int r, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     if (x1 > x2) { int t = x1; x1 = x2; x2 = t; }
     if (y1 > y2) { int t = y1; y1 = y2; y2 = t; }
@@ -744,7 +744,7 @@ void eui_draw_round_rect_fill(Canvas *c, int x1, int y1, int x2, int y2, int r, 
 
 /**
  * @brief  绘制带边框的实心圆角矩形（内部黑色，边框指定颜色，支持 XOR 模式）
- * @param  c             Canvas 指针，不能为 NULL
+ * @param  c             Canvas 指针，不能为 ESGUI_NULL
  * @param  x1            左上角 X 坐标
  * @param  y1            左上角 Y 坐标
  * @param  x2            右下角 X 坐标
@@ -753,7 +753,7 @@ void eui_draw_round_rect_fill(Canvas *c, int x1, int y1, int x2, int y2, int r, 
  * @param  mode          绘制模式
  */
 void eui_draw_round_rect_box(Canvas *c, int x1, int y1, int x2, int y2, int r, EUI_DrawMode mode) {
-    if (c == NULL) return;
+    if (c == ESGUI_NULL) return;
 
     switch (mode) {
         case EUI_MODE_SET:
@@ -784,14 +784,14 @@ void eui_draw_round_rect_box(Canvas *c, int x1, int y1, int x2, int y2, int r, E
  * @param level 掩码级别 0~8，0=无掩码，8=最黑（全黑）
  * @note 内部使用 0xAA >> level 的交错扫描线效果，适配条带刷新
  */
-void canvas_apply_transition_mask(Canvas *c, uint8_t level) {
-    if (c == NULL || level == 0) return;
+void canvas_apply_transition_mask(Canvas *c, eui_uint8_t level) {
+    if (c == ESGUI_NULL || level == 0) return;
     if (level > 8) level = 8;
 
     int pages = (c->buf_area.y2 - c->buf_area.y1 + 1) >> 3;
 
     for (int p = 0; p < pages; p++) {
-        uint8_t *row = c->buf + p * c->stride;
+        eui_uint8_t *row = c->buf + p * c->stride;
         for (int x = 0; x < c->stride; x++) {
              // row[x] &= (0xAA >> level);   /* 整字节统一掩码，条带间无相位跳变 */
             // row[x] &= (0xAA >> (x % level));
@@ -818,8 +818,8 @@ void canvas_apply_transition_mask(Canvas *c, uint8_t level) {
  *        与"四黑边"方案不同，此方案保留中心区域的内容，视觉上更像镜头缩放。
  *        适用于单色屏页式显存，零浮点运算。
  */
-void canvas_apply_zoom_mask(Canvas *c, uint8_t level) {
-    if (c == NULL || level == 0) return;
+void canvas_apply_zoom_mask(Canvas *c, eui_uint8_t level) {
+    if (c == ESGUI_NULL || level == 0) return;
     if (level > 8) level = 8;
 
     int w = c->stride;

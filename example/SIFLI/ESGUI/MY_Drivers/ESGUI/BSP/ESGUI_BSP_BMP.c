@@ -3,24 +3,23 @@
 //
 
 #include "ESGUI_BSP_BMP.h"
-#define NULL ((void*)0)
 
 /* ==================== 位图绘制（页式格式） ==================== */
 
 /**
  * @brief  绘制页式 1bpp 位图
- * @param  c      Canvas 指针，不能为 NULL
+ * @param  c      Canvas 指针，不能为 ESGUI_NULL
  * @param  x      位图左上角 X 坐标
  * @param  y      位图左上角 Y 坐标
- * @param  bmp    位图指针，不能为 NULL；data 成员也不能为 NULL
+ * @param  bmp    位图指针，不能为 ESGUI_NULL；data 成员也不能为 ESGUI_NULL
  * @param  color  绘制颜色：0 为黑色（擦除），非 0 为白色（绘制）
  * @retval 无
  * @note   快速路径：当 y 坐标和位图高度均为 8 的倍数时，按页逐字节 OR/AND，
  *         速度极快（适合字体、图标）。
  *         通用路径：支持任意 y 坐标，自动处理页内 bit 偏移和跨页拼接。
  */
-void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color) {
-    if (c == NULL || bmp == NULL || bmp->data == NULL || bmp->w <= 0 || bmp->h <= 0) return;
+void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, eui_uint8_t color) {
+    if (c == ESGUI_NULL || bmp == ESGUI_NULL || bmp->data == ESGUI_NULL || bmp->w <= 0 || bmp->h <= 0) return;
 
     int x1 = x, y1 = y;
     int x2 = x + bmp->w - 1;
@@ -48,8 +47,8 @@ void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color) 
         int dst_page0 = (y1 - c->buf_area.y1) >> 3;
 
         for (int p = 0; p < src_pages; p++) {
-            uint8_t *dst = c->buf + (dst_page0 + p) * c->stride + x1;
-            const uint8_t *src = bmp->data + p * bmp->w + src_x1;
+            eui_uint8_t *dst = c->buf + (dst_page0 + p) * c->stride + x1;
+            const eui_uint8_t *src = bmp->data + p * bmp->w + src_x1;
 
             if (color) {
                 for (int i = 0; i < copy_w; i++) dst[i] |= src[i];
@@ -68,11 +67,11 @@ void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color) 
         int rows_here = 8 - dst_bit;
         if (rows_here > (y2 - dst_y + 1)) rows_here = y2 - dst_y + 1;
 
-        uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
+        eui_uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
 
         for (int i = 0; i < copy_w; i++) {
             int src_x = src_x1 + i;
-            uint8_t src_byte = 0;
+            eui_uint8_t src_byte = 0;
 
             for (int row = 0; row < rows_here; row++) {
                 int src_y = (dst_y - y) + row;
@@ -91,10 +90,10 @@ void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color) 
 
 /**
  * @brief  带透明色的页式 1bpp 位图绘制
- * @param  c                  Canvas 指针，不能为 NULL
+ * @param  c                  Canvas 指针，不能为 ESGUI_NULL
  * @param  x                  位图左上角 X 坐标
  * @param  y                  位图左上角 Y 坐标
- * @param  bmp                位图指针，不能为 NULL；data 成员也不能为 NULL
+ * @param  bmp                位图指针，不能为 ESGUI_NULL；data 成员也不能为 ESGUI_NULL
  * @param  color              绘制颜色：0 为黑色，非 0 为白色
  * @param  transparent_color  透明色（0 或 1）。位图中等于该值的像素不绘制。
  *                            传大于 1 的值（如 0xFF）表示不使用透明色，直接走不透明绘制。
@@ -103,16 +102,16 @@ void eui_draw_bitmap(Canvas *c, int x, int y, const Bitmap *bmp, uint8_t color) 
  *         全 0xFF 视为透明色 1。部分填充的边界字节可能无法精确按位透明。
  */
 void eui_draw_bitmap_transparent(Canvas *c, int x, int y, const Bitmap *bmp,
-                             uint8_t color, uint8_t transparent_color)
+                             eui_uint8_t color, eui_uint8_t transparent_color)
 {
-    if (c == NULL || bmp == NULL) return;
+    if (c == ESGUI_NULL || bmp == ESGUI_NULL) return;
 
     if (transparent_color > 1) {
         eui_draw_bitmap(c, x, y, bmp, color);
         return;
     }
 
-    if (bmp->data == NULL || bmp->w <= 0 || bmp->h <= 0) return;
+    if (bmp->data == ESGUI_NULL || bmp->w <= 0 || bmp->h <= 0) return;
 
     int x1 = x, y1 = y;
     int x2 = x + bmp->w - 1;
@@ -139,11 +138,11 @@ void eui_draw_bitmap_transparent(Canvas *c, int x, int y, const Bitmap *bmp,
         int rows_here = 8 - dst_bit;
         if (rows_here > (y2 - dst_y + 1)) rows_here = y2 - dst_y + 1;
 
-        uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
+        eui_uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
 
         for (int i = 0; i < copy_w; i++) {
             int src_x = src_x1 + i;
-            uint8_t src_byte = 0;
+            eui_uint8_t src_byte = 0;
 
             for (int row = 0; row < rows_here; row++) {
                 int src_y = (dst_y - y) + row;
@@ -167,15 +166,15 @@ void eui_draw_bitmap_transparent(Canvas *c, int x, int y, const Bitmap *bmp,
 
 /**
  * @brief  反色（XOR）绘制页式 1bpp 位图
- * @param  c   Canvas 指针，不能为 NULL
+ * @param  c   Canvas 指针，不能为 ESGUI_NULL
  * @param  x   位图左上角 X 坐标
  * @param  y   位图左上角 Y 坐标
- * @param  bmp 位图指针，不能为 NULL；data 成员也不能为 NULL
+ * @param  bmp 位图指针，不能为 ESGUI_NULL；data 成员也不能为 ESGUI_NULL
  * @retval 无
  * @note   将位图覆盖区域与显存做 XOR 运算，常用于实现光标反色、选中高亮等效果。
  */
 void eui_draw_bitmap_invert(Canvas *c, int x, int y, const Bitmap *bmp) {
-    if (c == NULL || bmp == NULL || bmp->data == NULL || bmp->w <= 0 || bmp->h <= 0) return;
+    if (c == ESGUI_NULL || bmp == ESGUI_NULL || bmp->data == ESGUI_NULL || bmp->w <= 0 || bmp->h <= 0) return;
 
     int x1 = x, y1 = y;
     int x2 = x + bmp->w - 1;
@@ -202,11 +201,11 @@ void eui_draw_bitmap_invert(Canvas *c, int x, int y, const Bitmap *bmp) {
         int rows_here = 8 - dst_bit;
         if (rows_here > (y2 - dst_y + 1)) rows_here = y2 - dst_y + 1;
 
-        uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
+        eui_uint8_t *dst_row = c->buf + dst_page * c->stride + x1;
 
         for (int i = 0; i < copy_w; i++) {
             int src_x = src_x1 + i;
-            uint8_t src_byte = 0;
+            eui_uint8_t src_byte = 0;
 
             for (int row = 0; row < rows_here; row++) {
                 int src_y = (dst_y - y) + row;
