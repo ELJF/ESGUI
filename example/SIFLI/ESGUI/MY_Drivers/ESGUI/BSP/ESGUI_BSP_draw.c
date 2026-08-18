@@ -502,6 +502,7 @@ void eui_draw_circle_box(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode) {
 }
 
 /* ==================== 三角形 ==================== */
+#if ESGUI_ENABLE_DRAW_TRIANGLE
 
 
 /**
@@ -609,6 +610,8 @@ void eui_draw_triangle_box(Canvas *c, int x0, int y0, int x1, int y1, int x2, in
             break;
     }
 }
+
+#endif /* ESGUI_ENABLE_DRAW_TRIANGLE */
 
 /* ==================== 圆角矩形 ==================== */
 
@@ -790,17 +793,15 @@ void canvas_apply_transition_mask(Canvas *c, eui_uint8_t level) {
 
     int pages = (c->buf_area.y2 - c->buf_area.y1 + 1) >> 3;
 
+    /* 基础交错掩码：0xAA 右移 level 位得到条带密度 */
+    eui_uint8_t base = (eui_uint8_t)(0xAA >> level);
+
     for (int p = 0; p < pages; p++) {
         eui_uint8_t *row = c->buf + p * c->stride;
+        eui_uint8_t sh = 0;   /* 当前移位量，等价于 x % level，用计数器替代除法 */
         for (int x = 0; x < c->stride; x++) {
-             // row[x] &= (0xAA >> level);   /* 整字节统一掩码，条带间无相位跳变 */
-            // row[x] &= (0xAA >> (x % level));
-
-            // row[x] &= ((0xAA >> level) >> (x % 8));
-            row[x] &= ((0xAA >> level) >> (x % level));
-
-            // row[x] &= ((0xAA >> level) << (x % 8));
-            // row[x] &= ((0xAA >> level) << (level));
+            row[x] &= (eui_uint8_t)(base >> sh);
+            if (++sh == level) sh = 0;
         }
     }
 }

@@ -1,0 +1,4 @@
+source "$SIFLI_SDK/Kconfig.v2"
+source "$SIFLI_SDK/customer/boards/Kconfig.v2"
+source "D:/SiFli/SiFli-SDK/v2.4.6/customer/boards/sf32lb52-core_n16r16/hcpu/Kconfig.board"
+source "D:/SiFli/SiFli-SDK/v2.4.6/example/flash_table/sf32lb52x_common_v2/Kconfig.proj"

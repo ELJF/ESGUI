@@ -1,0 +1,3 @@
+The choice symbol LCD_USING_TFT_CO5300 (defined at D:\SiFli\SiFli-SDK\v2.4.6//customer/boards/Kconfig_lcd:353) was selected (set =y),
+but no symbol ended
+up as the choice selection. Check these unsatisfied dependencies: BSP_USING_BUILTIN_LCD (=n), BSP_USING_LCD (=n). 

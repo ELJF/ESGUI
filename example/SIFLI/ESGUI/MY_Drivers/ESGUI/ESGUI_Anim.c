@@ -4,6 +4,7 @@
 
 #include "ESGUI_Anim.h"
 #include "string.h"
+#include "stdint.h"
 
 /* ========== 静态数据区 ========== */
 
@@ -133,6 +134,7 @@ eui_int32_t anim_path_ease_in_out_impl(const anim_t* a, eui_int32_t p1000) {
     }
 }
 
+#if ESGUI_ANIM_ENABLE_OVERSHOOT
 eui_int32_t anim_path_overshoot_impl(const anim_t* a, eui_int32_t p1000) {
     (void)a;
     if (p1000 < 700) {
@@ -141,7 +143,9 @@ eui_int32_t anim_path_overshoot_impl(const anim_t* a, eui_int32_t p1000) {
         return map_range(p1000, 700, 1000, 1100, 1000);
     }
 }
+#endif
 
+#if ESGUI_ANIM_ENABLE_BOUNCE
 eui_int32_t anim_path_bounce_impl(const anim_t* a, eui_int32_t p1000) {
     (void)a;
     if (p1000 < 600) {
@@ -156,6 +160,7 @@ eui_int32_t anim_path_bounce_impl(const anim_t* a, eui_int32_t p1000) {
         return map_range(p1000, 950, 1000, 850, 1000);
     }
 }
+#endif
 
 /**
  * @brief 根据动画配置的 path_type 调用对应缓动函数
@@ -171,9 +176,15 @@ static eui_int32_t anim_path_apply(const anim_t* a, eui_int32_t p1000) {
         case ANIM_PATH_EASE_IN:     return anim_path_ease_in_impl(a, p1000);
         case ANIM_PATH_EASE_OUT:    return anim_path_ease_out_impl(a, p1000);
         case ANIM_PATH_EASE_IN_OUT: return anim_path_ease_in_out_impl(a, p1000);
+#if ESGUI_ANIM_ENABLE_OVERSHOOT
         case ANIM_PATH_OVERSHOOT:   return anim_path_overshoot_impl(a, p1000);
+#endif
+#if ESGUI_ANIM_ENABLE_BOUNCE
         case ANIM_PATH_BOUNCE:      return anim_path_bounce_impl(a, p1000);
+#endif
+#if ESGUI_ANIM_ENABLE_STEP
         case ANIM_PATH_STEP:        return a->end;
+#endif
 
 #if MORE_ANIM_FUNK
         case ANIM_PATH_LINEAR2:     return anim_path_linear(a,p1000);
@@ -213,6 +224,8 @@ void anim_init(void) {
         anim_idle_head = &anim_pool[i];
     }
 }
+
+
 
 
 /**
@@ -267,6 +280,8 @@ bool anim_set_end(anim_t* a, eui_int32_t end, eui_uint32_t duration) {
 }
 
 
+
+
 anim_t* anim_start(anim_t* a) {
     if (!a || !a->exec_cb) return ESGUI_NULL;
 
@@ -297,6 +312,8 @@ anim_t* anim_start(anim_t* a) {
     return real;
 }
 
+
+
 void anim_stop(anim_t* a) {
     if (!a) return;
     // 释放 ID
@@ -307,6 +324,8 @@ void anim_stop(anim_t* a) {
     anim_remove_active(a);
     anim_free(a);
 }
+
+
 
 void anim_stop_all(void* var) {
     anim_t* cur = anim_active_head;
@@ -324,6 +343,8 @@ void anim_stop_all(void* var) {
         cur = next;
     }
 }
+
+
 
 void anim_update(eui_uint32_t tick) {
     anim_t* cur = anim_active_head;
@@ -411,11 +432,17 @@ void anim_must_complete_reset(void) {
 
 
 
+
+
+
+
 /* ========== 查询 API ========== */
 
 bool anim_is_running(void) {
     return (anim_active_head != ESGUI_NULL);
 }
+
+
 
 bool anim_is_running_var(void* var) {
     if (var == ESGUI_NULL) return false;
@@ -429,6 +456,8 @@ bool anim_is_running_var(void* var) {
     return false;
 }
 
+
+
 eui_uint8_t anim_get_running_count(void) {
     eui_uint8_t count = 0;
     anim_t* cur = anim_active_head;
@@ -441,10 +470,14 @@ eui_uint8_t anim_get_running_count(void) {
 
 
 
+
+
 // 查询：是否所有"必须完成"的动画都结束了
 bool anim_all_must_complete_done(void) {
     return (s_done_ids & s_used_ids) == s_used_ids;
 }
+
+
 
 
 
@@ -513,6 +546,8 @@ anim_t* anim_set_must_complete(anim_t* a, bool en) {
     }
     return a;
 }
+
+
 
 
 #if MORE_ANIM_FUNK

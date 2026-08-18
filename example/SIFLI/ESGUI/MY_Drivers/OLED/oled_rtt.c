@@ -262,13 +262,14 @@ rt_err_t oled_init(OLED_T *oled,
 void OLED_Refresh(OLED_T *oled_obj,rt_uint8_t *buf,rt_uint16_t len) {
     if (oled_obj == NULL) {return;}
 
+    rt_pin_write(oled_obj->cs_pin_id, PIN_LOW);
+
 #ifdef OLED_SSD1306
     /* ============================================================
      * SSD1306 刷新方式: 水平寻址模式，一次性发送整个显存
      * 支持 DMA 模式，大数据量传输效率高
      * ============================================================ */
     rt_pin_write(oled_obj->dc_pin_id, PIN_HIGH);
-    rt_pin_write(oled_obj->cs_pin_id, PIN_LOW);
 
     #if OLED_SPI_DMA_EN == 1
          struct rt_spi_message msg;

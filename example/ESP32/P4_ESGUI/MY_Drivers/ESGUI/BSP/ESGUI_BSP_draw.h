@@ -6,6 +6,7 @@
 #define ESGUI_ESGUI_BSP_H
 
 #include "ESGUI_BSP_Canvas.h"
+#include "ESGUI_DefaultConfig.h"
 
 /**
  * @brief 绘制模式枚举
@@ -48,12 +49,15 @@ void eui_draw_circle_fill(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode);
 void eui_draw_circle_box(Canvas *c, int cx, int cy, int r, EUI_DrawMode mode);
 
 /* ==================== 三角形 ==================== */
+#if ESGUI_ENABLE_DRAW_TRIANGLE
 
 void eui_draw_triangle_stroke(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode);
 
 void eui_draw_triangle_fill(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode);
 
 void eui_draw_triangle_box(Canvas *c, int x0, int y0, int x1, int y1, int x2, int y2, EUI_DrawMode mode);
+
+#endif /* ESGUI_ENABLE_DRAW_TRIANGLE */
 
 /* ==================== 圆角矩形 ==================== */
 

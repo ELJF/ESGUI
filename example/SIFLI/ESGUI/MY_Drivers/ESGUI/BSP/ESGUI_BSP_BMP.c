@@ -131,6 +131,36 @@ void eui_draw_bitmap_transparent(Canvas *c, int x, int y, const Bitmap *bmp,
     int src_x1 = x1 - x;
     int copy_w = x2 - x1 + 1;
 
+    /* ========== 快速路径：y 和高度都是 8 对齐，逐字节透明绘制 ========== */
+    if ((y & 7) == 0 && (bmp->h & 7) == 0 &&
+        y1 == y && y2 == (y + bmp->h - 1))
+    {
+        int src_pages = bmp->h >> 3;
+        int dst_page0 = (y1 - c->buf_area.y1) >> 3;
+
+        for (int p = 0; p < src_pages; p++) {
+            eui_uint8_t *dst = c->buf + (dst_page0 + p) * c->stride + x1;
+            const eui_uint8_t *src = bmp->data + p * bmp->w + src_x1;
+
+            if (transparent_color == 0) {
+                /* 透明色 0：跳过全 0 字节 */
+                if (color) {
+                    for (int i = 0; i < copy_w; i++) { if (src[i]) dst[i] |= src[i]; }
+                } else {
+                    for (int i = 0; i < copy_w; i++) { if (src[i]) dst[i] &= ~src[i]; }
+                }
+            } else {
+                /* 透明色 1：跳过全 0xFF 字节 */
+                if (color) {
+                    for (int i = 0; i < copy_w; i++) { if (src[i] != 0xFF) dst[i] |= src[i]; }
+                } else {
+                    for (int i = 0; i < copy_w; i++) { if (src[i] != 0xFF) dst[i] &= ~src[i]; }
+                }
+            }
+        }
+        return;
+    }
+
     int dst_y = y1;
     while (dst_y <= y2) {
         int dst_page = (dst_y - c->buf_area.y1) >> 3;

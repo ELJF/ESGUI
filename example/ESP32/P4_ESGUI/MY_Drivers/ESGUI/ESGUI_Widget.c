@@ -6,6 +6,7 @@
 #include "ESGUI_Widget.h"
 #include "ESGUI_BSP_draw.h"
 #include "string.h"
+#include <stdint.h>
 
 /* ========== 进度条唯一核心实现（千分比，零浮点） ========== */
 
@@ -151,3 +152,4 @@ void ESGUI_WidgetBmpFocusBoxAnim(Canvas *c, int x, int y, eui_uint16_t box_w, eu
     eui_draw_hline(c, x1 - len, x1, y1, EUI_MODE_SET);
     eui_draw_vline(c, x1, y1 - h_f, y1, EUI_MODE_SET);
 }
+

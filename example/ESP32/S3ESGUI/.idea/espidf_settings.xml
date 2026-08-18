@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ESP-IDF_SETTINGS">
+    <option name="cmakeProfile" value="idf" />
+    <option name="monitorBaud" value="Auto" />
+    <option name="port" value="COM9" />
+    <option name="uploadBaud" value="Auto" />
+  </component>
+</project>

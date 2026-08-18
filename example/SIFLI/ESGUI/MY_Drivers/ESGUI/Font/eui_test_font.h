@@ -6,7 +6,7 @@
 #ifndef eui_test_font_H
 #define eui_test_font_H
 
-#include <stdint.h>
+#include "ESGUI_Def.h"
 #include "ESGUI_BSP_Text.h"
 
 extern const Font eui_test_font;

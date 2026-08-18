@@ -5,7 +5,7 @@
 #include "drv_gpio.h"
 #include "ESGUI.h"
 #include "ESGUI_UseCanvas.h"
-#include "eui_test_page.h"
+#include "text_page.h"
 #include "mem_section.h"
 #include "ec11.h"
 
@@ -45,7 +45,43 @@ void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const uint8_t* buff,void* 
 }
 
 
+ESGUI_T ui;
 
+
+static void ESGUI_KeyThread(void* arg) {
+    uint32_t now_ms = 0;
+    while (1) {
+        now_ms = HAL_GetTick();
+        EC11_KeyScan(&ec11);
+
+        switch (EC11_GetState(&ec11)) {
+            case EC11_UP:
+                ESGUI_FeedKey(&ui,EVT_KEY_UP,now_ms);
+                break;
+
+            case EC11_DOWN:
+                ESGUI_FeedKey(&ui,EVT_KEY_DOWN,now_ms);
+                break;
+
+            case EC11_STATE_NULL:
+                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
+                break;
+
+            case EC11_KEY_SHORT_PRESS:
+                ESGUI_FeedKey(&ui,EVT_CLICKED,now_ms);
+                break;
+
+            case EC11_KEY_LONG_PRESS:
+                ESGUI_FeedKey(&ui,EVT_KEY_BACK,now_ms);
+                break;
+
+            default:
+                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
+                break;
+        }
+        rt_thread_mdelay(10);
+    }
+}
 
 
 /**
@@ -84,8 +120,7 @@ int main(void)
                EC11_KEY_PIN,
                EC11_DIR_ANTICLOCKWISE);
 
-    
-    ESGUI_T ui;
+
     Canvas c;
     CanvasStripIter c_it;
     
@@ -96,40 +131,14 @@ int main(void)
     ESGUI_BindCanvas(&ui,&c,&c_it,oled_buff,128,oled_h,oled_h);
     eui_test_page_init();
 
+    rt_thread_t esgui_key_thread_handle = rt_thread_create("ESGUI_Key",ESGUI_KeyThread,NULL,2048,12,20);
+    rt_thread_startup(esgui_key_thread_handle);
     uint32_t now_ms = 0;
 
     /* Infinite loop */
     while (1)
     {
         now_ms = HAL_GetTick();
-
-        EC11_KeyScan(&ec11);
-
-        switch (EC11_GetState(&ec11)) {
-            case EC11_UP:
-                ESGUI_FeedKey(&ui,EVT_KEY_UP,now_ms);
-                break;
-
-            case EC11_DOWN:
-                ESGUI_FeedKey(&ui,EVT_KEY_DOWN,now_ms);
-                break;
-
-            case EC11_STATE_NULL:
-                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
-                break;
-
-            case EC11_KEY_SHORT_PRESS:
-                ESGUI_FeedKey(&ui,EVT_CLICKED,now_ms);
-                break;
-
-            case EC11_KEY_LONG_PRESS:
-                ESGUI_FeedKey(&ui,EVT_KEY_BACK,now_ms);
-                break;
-
-            default:
-                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
-                break;
-        }
         ESGUI_Tick(&ui,now_ms);
         rt_thread_mdelay(10);
     }

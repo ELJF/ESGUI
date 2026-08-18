@@ -108,6 +108,51 @@ void ESGUI_DefaultBMPMenuCreate(ESGUI_MenuPage_T *page, const char *title,
 
 #endif /* ESGUI_ENABLE_BMP_MENU */
 
+/* ========== 默认 3D 菜单 ========== */
+#if (ESGUI_ENABLE_3D_MENU && ESGUI_ENABLE_3D)
+
+/**
+ * @brief 3D 菜单页面私有数据（运行时状态）
+ * @note  布局/动画字段与 BMP 菜单一致，仅把图片替换为 3D 线框模型，
+ *        并增加透视、缩放、焦点旋转等 3D 专有状态。
+ */
+typedef struct esgui_default_3d_menu_dat {
+    eui_uint16_t font_height;       /**< 字体行高（像素） */
+    eui_uint16_t label_y;           /**< 标签基准 Y 坐标 */
+    eui_int16_t  label_anim_y;      /**< 标签动画当前 Y 坐标 */
+    eui_uint16_t model_y;           /**< 模型区域基准 Y 坐标 */
+    eui_uint16_t model_center_y;    /**< 模型区域中心 Y 坐标 */
+    eui_uint16_t progress_bar_h;    /**< 顶部横向进度条高度 */
+    eui_uint16_t progress_bar_per;  /**< 进度条千分比（0~1000） */
+    eui_uint16_t line_len;          /**< 分割线当前长度 */
+    eui_uint16_t box_start_w;       /**< 焦点框动画起始宽度 */
+    eui_uint16_t box_start_h;       /**< 焦点框动画起始高度 */
+    eui_uint16_t box_target_w;      /**< 焦点框动画目标宽度 */
+    eui_uint16_t box_target_h;      /**< 焦点框动画目标高度 */
+    eui_uint16_t box_permille;      /**< 焦点框生长动画进度（0~1000） */
+    eui_uint16_t trans_count;       /**< 过渡遮罩级别（0~8） */
+    eui_uint8_t  trans_active;      /**< 过渡动画是否运行中 */
+    eui_uint8_t  first_push;        /**< 1=首次 Push（需要完整入场动画） */
+    eui_int32_t  focal;             /**< 透视焦距（像素） */
+    eui_int32_t  model_depth;       /**< 模型深度（世界坐标 y，须 > 0） */
+    eui_uint16_t slot_w;            /**< 模型槽位宽（模型显示尺寸 + 间距） */
+    eui_uint16_t model_display_h;   /**< 模型目标显示高度（自适应） */
+    eui_uint16_t focus_box_h;       /**< 焦点框边长（距分界线各 FOCUS_MARGIN px） */
+    eui_int32_t  item_scale_q8[ESGUI_3D_MENU_MAX_ITEMS]; /**< 每模型缩放（Q8） */
+    eui_int32_t  focus_rot_z;       /**< 焦点模型绕 Z 轴旋转角（度） */
+} ESGUI_DEFAULT_3D_MENU_DAT;
+
+void esgui_3d_menu_defalt_on_create(ESGUI_MenuPage_T *page);
+void esgui_3d_menu_defalt_on_destroy(ESGUI_MenuPage_T *page);
+ESGUI_MenuAction_T esgui_3d_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e);
+void esgui_3d_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx);
+void esgui_3d_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action);
+void esgui_3d_menu_defalt_on_draw(ESGUI_MenuPage_T *page);
+void ESGUI_Default3DMenuCreate(ESGUI_MenuPage_T *page, const char *title,
+                               ESGUI_MenuItem_T *items, eui_uint32_t item_num);
+
+#endif /* (ESGUI_ENABLE_3D_MENU && ESGUI_ENABLE_3D) */
+
 /* ========== 消息弹窗 ========== */
 #if ESGUI_ENABLE_POPUP_MESSAGE
 

@@ -7,10 +7,13 @@
 
 #include "ESGUI_Event.h"
 #include "ESGUI_Def.h"
+#include "ESGUI_DefaultConfig.h"
 #include "stdbool.h"
 
 
+#ifndef ESGUI_MAX_MENU_DEPTH
 #define ESGUI_MAX_MENU_DEPTH    8   //最大菜单深度
+#endif
 #define ESGUI_ITEM_NUM_COUNT(arr)  (sizeof(arr) / sizeof((arr)[0]))  //item_num自动计算宏
 
 

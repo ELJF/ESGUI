@@ -34,7 +34,7 @@ __WEAK void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const eui_uint8_t* 
 void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
     if (ui == ESGUI_NULL || page == ESGUI_NULL)return;
 
-    CanvasStripIter *canvas_it = (CanvasStripIter*)ui->draw_data;
+    CanvasStripIter *canvas_it = (CanvasStripIter*)ui->draw_ctx;
 
     canvas_strip_iter_clean(canvas_it);
     while (canvas_strip_iter_next(canvas_it)) {
@@ -54,6 +54,13 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
             ((ESGUI_PopWindow_T*)window)->vtbl->on_draw(window);
         }
 
+        /* 覆盖层：叠加在页面与弹窗之上（列表顺序即 z-order，先加的在底层） */
+        for (eui_uint8_t i = 0; i < ui->overlay_count; i++) {
+            ESGUI_Overlay_T *ov = ui->overlays[i];
+            if (ov == ESGUI_NULL || !ov->visible || ov->on_draw == ESGUI_NULL) continue;
+            ov->on_draw(ov);
+        }
+
         /* 4. 弹出裁剪区 */
         canvas_clip_pop(canvas_it->canvas);
 
@@ -61,6 +68,8 @@ void ESGUI_CanvasRefresh_CB(ESGUI_T *ui,void *page,void *window) {
         canvas_strip_iter_flush(canvas_it, ESGUI_UseCanvasFlush, ESGUI_NULL);
     }
 }
+
+
 
 /**
  * @brief 动画心跳回调，供 ESGUI 主循环调用
@@ -95,6 +104,8 @@ void ESGUI_AnimTick_CB(ESGUI_T *ui, eui_uint32_t tick) {
     }
 }
 
+
+
 /**
  * @brief 绑定画布到 UI 系统
  * @param ui       UI 系统指针
@@ -121,5 +132,5 @@ void ESGUI_BindCanvas(ESGUI_T *ui,
     canvas_strip_iter_init(canvas_it,canvas_it->canvas,strip_h);
     anim_init();
 
-    ui->draw_data = canvas_it;
+    ui->draw_ctx = canvas_it;
 }

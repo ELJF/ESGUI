@@ -140,6 +140,7 @@ void ESGUI_MenuCtrlHandleAction(ESGUI_MenuCtrl_T *emc, ESGUI_MenuAction_T *act)
             break;
 
         case ACT_CLOSE_POPUP:
+            if (emc->pop_window == ESGUI_NULL) break;
             if (emc->pop_window->vtbl->on_page_chenge) {
                 emc->pop_window->vtbl->on_page_chenge((ESGUI_MenuPage_T*)emc->pop_window, act);
                 ESGUI_MenuCtrlPreparePopPage(emc);

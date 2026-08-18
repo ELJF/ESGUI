@@ -6,6 +6,7 @@
 #define ESGUI_ESGUI_ANIM_H
 
 #include "ESGUI_Def.h"
+#include "ESGUI_DefaultConfig.h"
 #include "stdbool.h"
 
 #ifndef ANIM_MAX_COUNT
@@ -381,7 +382,9 @@ eui_int32_t anim_path_ease_in_out_impl(const anim_t* a, eui_int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      范围 [0, 1100]，前 70% 冲到 110%，后 30% 拉回 100%
  */
+#if ESGUI_ANIM_ENABLE_OVERSHOOT
 eui_int32_t anim_path_overshoot_impl(const anim_t* a, eui_int32_t p1000);
+#endif
 
 /**
  * @brief 弹跳：多次反弹逐渐衰减
@@ -389,7 +392,9 @@ eui_int32_t anim_path_overshoot_impl(const anim_t* a, eui_int32_t p1000);
  * @param p1000 线性进度 [0, 1000]
  * @return      分段线性模拟弹跳，最终收敛到 1000
  */
+#if ESGUI_ANIM_ENABLE_BOUNCE
 eui_int32_t anim_path_bounce_impl(const anim_t* a, eui_int32_t p1000);
+#endif
 
 #if MORE_ANIM_FUNK
 eui_int32_t anim_path_linear(const struct anim_t* a, eui_int32_t p1000);

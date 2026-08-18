@@ -5,7 +5,7 @@
 #include "ESGUI_Task.h"
 #include "ESGUI.h"
 #include "ESGUI_BSP_Canvas.h"
-#include "eui_test_page.h"
+#include "text_page.h"
 #include "ESGUI_UseCanvas.h"
 #include "EC11.h"
 #include "oled.h"
@@ -27,6 +27,7 @@
 
 
 uint32_t now_ms = 0;
+uint32_t now_ms_key = 0;
 OLED_T oled1;
 Canvas c;
 CanvasStripIter c_it;
@@ -39,34 +40,45 @@ void ESGUI_UseCanvasFlush(int x0,int y0,int x1,int y1,const uint8_t* buff,void* 
 }
 
 
-static void ESGUI_LoopTask(void *arg) {
+
+static void ESGUI_KeyTask(void *arg) {
     while (1) {
         ec11_key_scan(&ec11);
         switch (ec11_get_state(&ec11)) {
             case EC11_UP:
-                ESGUI_FeedKey(&ui,EVT_KEY_UP,now_ms);
+                ESGUI_FeedKey(&ui,EVT_KEY_UP,now_ms_key);
                 break;
 
             case EC11_DOWN:
-                ESGUI_FeedKey(&ui,EVT_KEY_DOWN,now_ms);
+                ESGUI_FeedKey(&ui,EVT_KEY_DOWN,now_ms_key);
                 break;
 
             case EC11_STATE_NULL:
-                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
+                ESGUI_FeedKey(&ui,EVT_NONE,now_ms_key);
                 break;
 
             case EC11_KEY_SHORT_PRESS:
-                ESGUI_FeedKey(&ui,EVT_CLICKED,now_ms);
+                ESGUI_FeedKey(&ui,EVT_CLICKED,now_ms_key);
                 break;
 
             case EC11_KEY_LONG_PRESS:
-                ESGUI_FeedKey(&ui,EVT_KEY_BACK,now_ms);
+                ESGUI_FeedKey(&ui,EVT_KEY_BACK,now_ms_key);
                 break;
 
             default:
-                ESGUI_FeedKey(&ui,EVT_NONE,now_ms);
+                ESGUI_FeedKey(&ui,EVT_NONE,now_ms_key);
                 break;
         }
+        now_ms_key += 10;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+
+
+
+static void ESGUI_LoopTask(void *arg) {
+    while (1) {
         ESGUI_Tick(&ui,now_ms);
         now_ms += 10;
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -95,4 +107,5 @@ void ESGUI_Task_Init() {
     ec11_init(&ec11,EC11_A,EC11_B,EC11_KEY,EC11_DIR_CLOCKWISE);
 
     xTaskCreatePinnedToCore(ESGUI_LoopTask,"ESGUI_LOOP",4096,NULL,4,NULL,0);
+    xTaskCreatePinnedToCore(ESGUI_KeyTask,"ESGUI_KEY",2048,NULL,5,NULL,0);
 }

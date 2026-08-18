@@ -31,6 +31,7 @@
 #include "ESGUI_Anim.h"
 #include "ESGUI_BSP_BMP.h"
 #include "ESGUI_Widget.h"
+#include "ESGUI_3D.h"
 
 
 #ifndef offsetof
@@ -580,6 +581,9 @@ static void start_first_in_anim(ESGUI_MenuPage_T *page)
     eui_uint16_t permille = calc_progress_permille(page->focus_idx, page->item_num);
     start_progress_bar_anim(page, permille, 600);
     eui_int16_t focus_w = (eui_int16_t)get_pure_text_width(page->items[0].label) + ESGUI_FOCUS_BOX_PAD_X;
+    eui_int16_t max_text_w = canvas_get_width(c_it) - (eui_int16_t)page_data->text_need_len - 2;
+    if (focus_w > max_text_w) focus_w = max_text_w;
+    if (focus_w < 0) focus_w = 0;
     eui_int16_t focus_y = page_data->title_h + ESGUI_TITLE_LINE_OFFSET;
     start_focus_box_anim(page, focus_w, focus_y, 600);
     eui_uint16_t text_len = get_pure_text_width(page->items[0].label);
@@ -608,8 +612,6 @@ eui_uint16_t esgui_text_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *pa
     char c;
     if (ESGUI_WidgetCheckMarker(page->items[indx].label, ESGUI_WIDGET_DEFAULT_MARK, ESGUI_NULL, &c)) {
         switch (c) {
-            case '0':
-            case '1': return 10;
             case '2': return 20;
             default:  return 0;
         }
@@ -628,7 +630,6 @@ eui_uint16_t esgui_text_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *pa
 eui_uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx)
 {
     if (page == ESGUI_NULL) return 0;
-    ESGUI_DEFALT_TEXT_PAGE_DATA_T *page_data = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
     char c;
     eui_uint16_t pure_len;
@@ -637,18 +638,6 @@ eui_uint16_t esgui_text_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, eu
     }
     eui_int16_t x_base = canvas_get_width(c_it) - ESGUI_PROGRESS_BAR_W;
     switch (c) {
-        case '0':
-            ESGUI_WidgetCheckBoxSquare(c_it->canvas,
-                x_base - 10,
-                page->items[indx].y + 1,
-                page_data->font_height - 3, 8, 0);
-            return 10;
-        case '1':
-            ESGUI_WidgetCheckBoxRound(c_it->canvas,
-                x_base - 7,
-                page->items[indx].y + 5,
-                page_data->font_height / 3, 0);
-            return 10;
         case '2': {
             char buff[10] = {0};
             _int16_to_str(*(eui_int16_t*)page->items[indx].arg, buff);
@@ -693,7 +682,22 @@ void esgui_text_menu_defalt_on_create(ESGUI_MenuPage_T *page)
     eui_int16_t content_h = canvas_get_height(c_it) - data->title_h - ESGUI_TITLE_LINE_OFFSET;
     data->buff = (eui_uint16_t)(content_h / data->item_stride);
     data->stay = (data->buff + 1) / 2;
-    data->text_need_len = ESGUI_PROGRESS_BAR_W;
+
+    /* 初始化初始焦点条目的文本指标（等效于首次 on_focus_change）：
+     * 保证首条即为长文本时（focus_idx=0），进入页面即可识别并启动环形滚动 */
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_uint16_t text_len = get_pure_text_width(page->items[focus_idx].label);
+    data->text_len = text_len;
+
+    eui_uint16_t need_len = ESGUI_PROGRESS_BAR_W;
+    if (page->vtbl->get_special_item_draw_w != ESGUI_NULL) {
+        need_len += page->vtbl->get_special_item_draw_w(page, focus_idx);
+    }
+    data->text_need_len = need_len;
+
+    eui_int16_t max_text_w = canvas_get_width(c_it) - (eui_int16_t)need_len - 2;
+    data->flags = (data->flags & ~(FLAG_FOCUS_LONG_TEXT))
+                | ((text_len > (eui_uint16_t)max_text_w) ? FLAG_FOCUS_LONG_TEXT : 0);
 
     /* 过渡动画初始化 */
     data->trans_count = 0;
@@ -1041,7 +1045,7 @@ void ESGUI_DefaltTextMenuCreate(ESGUI_MenuPage_T *page,
  * 五、默认图形（BMP）菜单页面实现
  * ============================================================ */
 
-#if (ESGUI_ENABLE_BMP_MENU || ESGUI_ENABLE_POPUP_BMPLIST)
+#if (ESGUI_ENABLE_BMP_MENU || ESGUI_ENABLE_POPUP_BMPLIST || ESGUI_ENABLE_3D_MENU)
 /**
  * @brief 获取 BMP 条目相对于 items[0].x 的相对 X 坐标
  * @param page 页面指针
@@ -1572,6 +1576,516 @@ void ESGUI_DefaultBMPMenuCreate(ESGUI_MenuPage_T *page, const char *title,
     page->vtbl     = &esgui_default_bmp_menu_vtable;
 }
 #endif /* ESGUI_ENABLE_BMP_MENU */
+
+
+/* ============================================================
+ * 五.5 默认 3D 菜单
+ * ============================================================
+ * 仿造 BMP 菜单：布局、进度条、分割线、标签、焦点框、过渡动画一致，
+ * 仅把 BMP 图片替换为 3D 线框模型；焦点模型绕 Z 轴持续旋转，
+ * 模型尺寸根据屏幕自适应缩放。
+ */
+
+#if (ESGUI_ENABLE_3D_MENU && ESGUI_ENABLE_3D)
+
+/* ---------- 5.5.1 3D 菜单静态内存池 ---------- */
+
+static ESGUI_DEFAULT_3D_MENU_DAT s_3d_page_data_pool[ESGUI_3D_MENU_DATA_POOL_SIZE];
+static eui_uint8_t s_3d_page_data_alloc_map[ESGUI_3D_MENU_DATA_POOL_SIZE] = {0};
+
+static ESGUI_DEFAULT_3D_MENU_DAT *three_d_page_data_alloc(void)
+{
+    for (eui_uint8_t i = 0; i < ESGUI_3D_MENU_DATA_POOL_SIZE; i++) {
+        if (s_3d_page_data_alloc_map[i] == 0) {
+            s_3d_page_data_alloc_map[i] = 1;
+            memset(&s_3d_page_data_pool[i], 0, sizeof(ESGUI_DEFAULT_3D_MENU_DAT));
+            return &s_3d_page_data_pool[i];
+        }
+    }
+    return ESGUI_NULL;
+}
+
+static void three_d_page_data_free(ESGUI_DEFAULT_3D_MENU_DAT *p)
+{
+    if (p == ESGUI_NULL) return;
+    int idx = (int)(p - s_3d_page_data_pool);
+    if (idx >= 0 && idx < ESGUI_3D_MENU_DATA_POOL_SIZE) {
+        s_3d_page_data_alloc_map[idx] = 0;
+    }
+}
+
+/* 通用动画回调：写入 eui_int32_t（焦点模型旋转角） */
+static void anim_cb_int32(void *var, eui_int32_t value) {
+    if (var) *((eui_int32_t *)var) = value;
+}
+
+/* 整数开平方（牛顿迭代，向下取整），供面积归一化使用 */
+static eui_int32_t esgui_isqrt(eui_int32_t n)
+{
+    if (n <= 0) return 0;
+    eui_int32_t x = n;
+    eui_int32_t y = (x + 1) / 2;
+    while (y < x) {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    return x;
+}
+
+/* 计算模型包围盒的“面积特征尺寸” = √(宽 × 高)（屏幕平面 x/z）
+ * 使各模型屏幕包围盒面积基本一致（正方形与细长形都近似等面积） */
+static eui_int32_t three_d_model_area_size(const ESGUI_3D_T *model)
+{
+    if (model == ESGUI_NULL || model->point_list == ESGUI_NULL || model->num_points == 0) return 0;
+    eui_int32_t min_x = model->point_list[0].x, max_x = model->point_list[0].x;
+    eui_int32_t min_z = model->point_list[0].z, max_z = model->point_list[0].z;
+    for (eui_uint16_t i = 1; i < model->num_points; i++) {
+        eui_int32_t x = model->point_list[i].x;
+        eui_int32_t z = model->point_list[i].z;
+        if (x < min_x) min_x = x;
+        if (x > max_x) max_x = x;
+        if (z < min_z) min_z = z;
+        if (z > max_z) max_z = z;
+    }
+    eui_int32_t dim_x = max_x - min_x;
+    eui_int32_t dim_z = max_z - min_z;
+    return esgui_isqrt(dim_x * dim_z);
+}
+
+/* ---------- 5.5.2 过渡动画 ---------- */
+
+static void three_d_trans_anim_ready_cb(struct anim_t *a) {
+    if (!a || !a->var) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = (ESGUI_DEFAULT_3D_MENU_DAT *)
+        ((eui_uint8_t *)a->var - offsetof(ESGUI_DEFAULT_3D_MENU_DAT, trans_count));
+    dat->trans_active = 0;
+}
+
+static void start_three_d_page_transition_anim(ESGUI_MenuPage_T *page)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    if (dat->trans_active) return;
+    anim_t anim = {0};
+    anim.var       = &dat->trans_count;
+    anim.start     = 8;
+    anim.end       = 0;
+    anim.exec_cb   = anim_cb_uint16;
+    anim.duration  = ESGUI_PAGE_TRANSITION_ANIM_TIME;
+    anim.path_type = ANIM_PATH_LINEAR;
+    anim.ready_cb  = three_d_trans_anim_ready_cb;
+    anim_start(&anim);
+    dat->trans_active = 1;
+}
+
+static void start_three_d_page_exit_anim(ESGUI_MenuPage_T *page)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    if (dat->trans_active) return;
+    anim_t anim = {0};
+    anim.var       = &dat->trans_count;
+    anim.start     = 0;
+    anim.end       = 8;
+    anim.exec_cb   = anim_cb_uint16;
+    anim.duration  = ESGUI_PAGE_TRANSITION_ANIM_TIME;
+    anim.path_type = ANIM_PATH_LINEAR;
+    anim_set_must_complete(&anim, 1);
+    anim.ready_cb  = three_d_trans_anim_ready_cb;
+    anim_start(&anim);
+    dat->trans_active = 1;
+}
+
+/* 焦点模型绕 Z 轴持续旋转（无限循环动画） */
+static void start_three_d_focus_rot_anim(ESGUI_DEFAULT_3D_MENU_DAT *dat)
+{
+    if (dat == ESGUI_NULL) return;
+    if (anim_is_running_var(&dat->focus_rot_z)) return;  /* 已在旋转 */
+    anim_t anim = {0};
+    anim.var       = &dat->focus_rot_z;
+    anim.start     = dat->focus_rot_z;
+    anim.end       = 360;
+    anim.exec_cb   = anim_cb_int32;
+    anim.duration  = ESGUI_3D_DURATION;
+    anim.path_type = ANIM_PATH_LINEAR;
+    anim_set_repeat(&anim, 0xFFFF, false);  /* 无限单向循环 */
+    anim_start(&anim);
+}
+
+/* ---------- 5.5.3 生命周期 ---------- */
+
+void esgui_3d_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
+    if (page == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = three_d_page_data_alloc();
+    if (dat == ESGUI_NULL) return;
+    page->draw_data = dat;
+    CanvasStripIter *c_it = page->render_ctx;
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
+    dat->progress_bar_h = ESGUI_PROGRESS_BAR_W;
+    if (dat->progress_bar_h < 2) dat->progress_bar_h = 3;
+    eui_uint16_t top_margin = dat->progress_bar_h + 4;
+    dat->label_y = canvas_h - dat->font_height - 2;
+    dat->label_anim_y = dat->label_y;
+    eui_uint16_t separator_y = dat->label_y - 2;
+    eui_uint16_t mid_h = (separator_y > top_margin) ? (separator_y - top_margin) : 0;
+    dat->model_y = top_margin;
+    dat->model_center_y = top_margin + mid_h / 2;
+    dat->focal = ESGUI_3D_MENU_FOCAL;
+    if (dat->focal <= 0) dat->focal = 1;
+    dat->model_depth = ESGUI_3D_MENU_DEPTH;
+    if (dat->model_depth <= 0) dat->model_depth = 1;
+    /* 焦点框距上下分界线各 FOCUS_MARGIN px，尺寸随屏幕高度自适应；
+       模型按 MODEL_SCALE% 缩放到焦点框内 */
+    dat->focus_box_h = (mid_h > 2 * ESGUI_3D_MENU_FOCUS_MARGIN)
+        ? (eui_uint16_t)(mid_h - 2 * ESGUI_3D_MENU_FOCUS_MARGIN)
+        : mid_h;
+    dat->model_display_h = (dat->focus_box_h > 0)
+        ? (eui_uint16_t)((eui_uint32_t)dat->focus_box_h * ESGUI_3D_MENU_MODEL_SCALE / 100)
+        : dat->focus_box_h;
+    dat->slot_w = dat->model_display_h + ESGUI_3D_MENU_ITEM_GAP;
+    page->items[0].x = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        if (i >= ESGUI_3D_MENU_MAX_ITEMS) break;
+        const ESGUI_3D_T *model = (const ESGUI_3D_T *)page->items[i].icon;
+        eui_int32_t model_size = three_d_model_area_size(model);
+        eui_int32_t scale = 256;
+        if (model_size > 0 && dat->model_display_h > 0) {
+            scale = (eui_int32_t)(((int64_t)dat->model_display_h * 256 * dat->model_depth) /
+                                  ((int64_t)model_size * dat->focal));
+            if (scale <= 0) scale = 256;
+        }
+        dat->item_scale_q8[i] = scale;
+        page->items[i].y = dat->model_y;
+        if (i > 0) {
+            page->items[i].x = (int)i * (int)dat->slot_w;
+        }
+    }
+    dat->progress_bar_per = 0;
+    dat->line_len = 0;
+    dat->box_permille = 0;
+    dat->box_start_w = 0;
+    dat->box_start_h = 0;
+    dat->box_target_w = 0;
+    dat->box_target_h = 0;
+    dat->trans_count = 0;
+    dat->trans_active = 0;
+    dat->first_push = 1;
+    dat->focus_rot_z = 0;
+}
+
+void esgui_3d_menu_defalt_on_destroy(ESGUI_MenuPage_T *page) {
+    if (page == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    if (dat != ESGUI_NULL) {
+        anim_stop_all(&page->items[0].x);
+        anim_stop_all(&dat->progress_bar_per);
+        anim_stop_all(&dat->line_len);
+        anim_stop_all(&dat->label_anim_y);
+        anim_stop_all(&dat->box_permille);
+        anim_stop_all(&dat->trans_count);
+        anim_stop_all(&dat->focus_rot_z);
+        three_d_page_data_free(dat);
+        page->draw_data = ESGUI_NULL;
+    }
+    page->render_ctx = ESGUI_NULL;
+}
+
+/* ---------- 5.5.4 输入与焦点变化 ---------- */
+
+ESGUI_MenuAction_T esgui_3d_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e)
+{
+    if (page == ESGUI_NULL) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    if (dat && dat->trans_active) return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+
+    eui_uint16_t old_focus_idx = page->focus_idx;
+    switch (e) {
+        case EVT_KEY_UP:
+        case EVT_KEY_RIGHT:
+            FocusUP(page->focus_idx, page->item_num);
+            break;
+        case EVT_KEY_DOWN:
+        case EVT_KEY_LEFT:
+            FocusDOWN(page->focus_idx);
+            break;
+        case EVT_KEY_OK:
+        case EVT_CLICKED:
+            if (page->items[page->focus_idx].on_enter) {
+                return page->items[page->focus_idx].on_enter(page, page->items[page->focus_idx].arg);
+            }
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+        case EVT_KEY_BACK:
+            return (ESGUI_MenuAction_T){ACT_POP_PAGE, ESGUI_NULL};
+        default:
+            return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+    }
+    if (old_focus_idx != page->focus_idx) {
+        if (page->vtbl->on_focus_change) {
+            page->vtbl->on_focus_change(page, old_focus_idx, page->focus_idx);
+        }
+        return (ESGUI_MenuAction_T){ACT_REFRESH, ESGUI_NULL};
+    }
+    return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
+}
+
+void esgui_3d_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
+    (void)old_idx;
+    (void)new_idx;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    CanvasStripIter *c_it = page->render_ctx;
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    eui_uint16_t focus_idx = page->focus_idx;
+    eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+    eui_int16_t target_base = (canvas_w - (eui_int16_t)dat->slot_w) / 2 - focus_rel_x;
+    anim_t anim = {0};
+    anim.var       = &page->items[0].x;
+    anim.start     = page->items[0].x;
+    anim.end       = target_base;
+    anim.exec_cb   = anim_cb_int;
+    anim.duration  = 300;
+    anim.path_type = ANIM_PATH_EASE_OUT;
+    anim_start(&anim);
+    eui_uint16_t target_per = (eui_uint16_t)(((eui_uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
+    if (target_per > 1000) target_per = 1000;
+    anim_t anim_p = {0};
+    anim_p.var       = &dat->progress_bar_per;
+    anim_p.start     = dat->progress_bar_per;
+    anim_p.end       = target_per;
+    anim_p.exec_cb   = anim_cb_uint16;
+    anim_p.duration  = 300;
+    anim_p.path_type = ANIM_PATH_EASE_OUT;
+    anim_start(&anim_p);
+    anim_stop_all(&dat->box_permille);
+    eui_int32_t delta_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+    eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+    eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
+    eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
+    eui_uint16_t new_w = dat->focus_box_h;
+    eui_uint16_t new_h = dat->focus_box_h;
+    dat->box_start_w  = current_w;
+    dat->box_start_h  = current_h;
+    dat->box_target_w = new_w;
+    dat->box_target_h = new_h;
+    dat->box_permille = 0;
+    anim_t anim_box = {0};
+    anim_box.var       = &dat->box_permille;
+    anim_box.start     = 0;
+    anim_box.end       = 1000;
+    anim_box.exec_cb   = anim_cb_uint16;
+    anim_box.duration  = 400;
+    anim_box.path_type = ANIM_PATH_EASE_OUT;
+    anim_start(&anim_box);
+    anim_stop_all(&dat->label_anim_y);
+    anim_t anim_label = {0};
+    anim_label.var       = &dat->label_anim_y;
+    anim_label.start     = (eui_int16_t)canvas_h;
+    anim_label.end       = (eui_int16_t)dat->label_y;
+    anim_label.exec_cb   = anim_cb_int16;
+    anim_label.duration  = 600;
+    anim_label.path_type = ANIM_PATH_EASE_OUT;
+    anim_start(&anim_label);
+
+    /* 焦点模型绕 Z 轴持续旋转 */
+    start_three_d_focus_rot_anim(dat);
+
+    if (old_idx == new_idx) {
+        start_three_d_page_transition_anim(page);
+    }
+}
+
+void esgui_3d_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
+    if (page == ESGUI_NULL || action == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    CanvasStripIter *c_it = page->render_ctx;
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    if (action->act == ACT_PUSH_PAGE) {
+        if (dat->first_push) {
+            dat->first_push = 0;
+            eui_uint16_t focus_idx = page->focus_idx;
+            eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
+            eui_int16_t target_base = (canvas_w - (eui_int16_t)dat->slot_w) / 2 - focus_rel_x;
+            eui_int16_t start_base = canvas_w;
+            page->items[0].x = start_base;
+            anim_t anim = {0};
+            anim.var       = &page->items[0].x;
+            anim.start     = start_base;
+            anim.end       = target_base;
+            anim.exec_cb   = anim_cb_int;
+            anim.duration  = 400;
+            anim.path_type = ANIM_PATH_EASE_OUT;
+            anim_start(&anim);
+            eui_uint16_t target_per = (eui_uint16_t)(((eui_uint32_t)(focus_idx + 1) * 1000U + page->item_num / 2U) / page->item_num);
+            if (target_per > 1000) target_per = 1000;
+            dat->progress_bar_per = 0;
+            anim_t anim_p = {0};
+            anim_p.var       = &dat->progress_bar_per;
+            anim_p.start     = 0;
+            anim_p.end       = target_per;
+            anim_p.exec_cb   = anim_cb_uint16;
+            anim_p.duration  = 400;
+            anim_p.path_type = ANIM_PATH_EASE_OUT;
+            anim_start(&anim_p);
+            dat->line_len = 0;
+            anim_t anim_line = {0};
+            anim_line.var       = &dat->line_len;
+            anim_line.start     = 0;
+            anim_line.end       = canvas_w - 1;
+            anim_line.exec_cb   = anim_cb_uint16;
+            anim_line.duration  = 1000;
+            anim_line.path_type = ANIM_PATH_EASE_OUT;
+            anim_start(&anim_line);
+            dat->box_start_w  = 0;
+            dat->box_start_h  = 0;
+            dat->box_target_w = dat->focus_box_h;
+            dat->box_target_h = dat->focus_box_h;
+            dat->box_permille = 0;
+            anim_t anim_box = {0};
+            anim_box.var       = &dat->box_permille;
+            anim_box.start     = 0;
+            anim_box.end       = 1000;
+            anim_box.exec_cb   = anim_cb_uint16;
+            anim_box.duration  = 400;
+            anim_box.path_type = ANIM_PATH_EASE_OUT;
+            anim_start(&anim_box);
+            anim_stop_all(&dat->label_anim_y);
+            dat->label_anim_y = (eui_int16_t)canvas_h;
+            anim_t anim_label = {0};
+            anim_label.var       = &dat->label_anim_y;
+            anim_label.start     = (eui_int16_t)canvas_h;
+            anim_label.end       = (eui_int16_t)dat->label_y;
+            anim_label.exec_cb   = anim_cb_int16;
+            anim_label.duration  = 400;
+            anim_label.path_type = ANIM_PATH_EASE_OUT;
+            anim_start(&anim_label);
+        }
+        start_three_d_page_transition_anim(page);
+        start_three_d_focus_rot_anim(dat);
+    }
+    else if (action->act == ACT_POP_PAGE) {
+        start_three_d_page_exit_anim(page);
+    }
+}
+
+/* ---------- 5.5.5 绘制 ---------- */
+
+void esgui_3d_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    CanvasStripIter *c_it = page->render_ctx;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    eui_uint16_t canvas_w = canvas_get_width(c_it);
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    if (page->item_num > 0) {
+        ESGUI_WidgetProgrssBarChangeLenPermille(c_it->canvas,
+            2, 2, dat->progress_bar_h, canvas_w - 4,
+            dat->progress_bar_per, ESGUI_WIDGET_PROGBAR_RIGHT);
+    }
+    Area bmp_clip = {
+        0, (int)(dat->model_y - 2),
+        (int)(canvas_w - 1), (int)(dat->label_y - 4)
+    };
+    canvas_clip_push(c_it->canvas, &bmp_clip);
+    eui_int16_t base_x = page->items[0].x;
+    eui_int32_t cx = canvas_w / 2;
+    eui_int32_t cy = canvas_h / 2;
+    eui_int32_t depth = dat->model_depth;
+    eui_int32_t focal = dat->focal;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const ESGUI_3D_T *model = (const ESGUI_3D_T *)page->items[i].icon;
+        if (model == ESGUI_NULL) continue;
+        eui_int16_t rel_x = bmp_item_rel_x(page, i);
+        eui_int16_t x = base_x + rel_x;
+        eui_int32_t target_x = (eui_int32_t)x + dat->slot_w / 2;
+        eui_int32_t target_y = dat->model_center_y;
+        /* 透视反算平移量（模型中心 → 屏幕目标位置） */
+        eui_int32_t tx = (eui_int32_t)(((int64_t)(target_x - cx) * depth) / focal);
+        eui_int32_t tz = (eui_int32_t)(((int64_t)(cy - target_y) * depth) / focal);
+        ESGUI_3DTransform_T t;
+        ESGUI_3DTransformInit(&t);
+        t.tx = tx;
+        t.ty = depth;
+        t.tz = tz;
+        t.scale_q8 = (i < ESGUI_3D_MENU_MAX_ITEMS) ? dat->item_scale_q8[i] : 256;
+        if (i == page->focus_idx) {
+            ESGUI_3DTransformSetRot(&t, ESGUI_3D_AXIS_Z, dat->focus_rot_z);
+        }
+        ESGUI_3DWireframeDiagram(c_it->canvas, model, &t, focal, canvas_w, canvas_h, EUI_MODE_SET);
+        if (i == page->focus_idx) {
+            eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
+            eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
+            eui_uint16_t cur_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
+            eui_uint16_t cur_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
+            int fx = ((int)canvas_w - (int)cur_w) / 2;
+            int fy = (int)dat->model_center_y - (int)cur_h / 2;
+            ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
+        }
+    }
+    canvas_clip_pop(c_it->canvas);
+    if (dat->line_len > 0) {
+        eui_uint16_t sep_y = dat->label_y - 2;
+        if (sep_y > dat->progress_bar_h + 2) {
+            eui_draw_hline(c_it->canvas, 0, dat->line_len, sep_y, EUI_MODE_SET);
+        }
+    }
+    {
+        int label_y = dat->label_anim_y;
+        int label_area_x1 = 2;
+        int label_area_x2 = (int)canvas_w - 2;
+        if (page->title && page->title[0]) {
+            int title_w = eui_get_text_width(&ESGUI_DEFAULT_FONT, page->title);
+            int title_x = 2;
+            eui_draw_text_clip(c_it->canvas, title_x, dat->label_y,
+                &ESGUI_DEFAULT_FONT, page->title, 1, title_w);
+            label_area_x1 = title_x + title_w + 4;
+            if (label_area_x1 > label_area_x2) label_area_x1 = label_area_x2;
+        }
+        if (page->items[page->focus_idx].label) {
+            const char *label = page->items[page->focus_idx].label;
+            int text_w = eui_get_text_width(&ESGUI_DEFAULT_FONT, label);
+            int avail_w = label_area_x2 - label_area_x1;
+            if (avail_w < 0) avail_w = 0;
+            int text_x = label_area_x1 + (avail_w - text_w) / 2;
+            if (text_x < label_area_x1) text_x = label_area_x1;
+            eui_draw_text_clip(c_it->canvas, text_x, label_y,
+                &ESGUI_DEFAULT_FONT, label, 1, avail_w);
+        }
+    }
+    if (dat->trans_active) {
+#if ESGUI_PAGE_TRANSITION_TYPE == 0
+        canvas_apply_transition_mask(c_it->canvas, (eui_uint8_t)dat->trans_count);
+#elif ESGUI_PAGE_TRANSITION_TYPE == 1
+        canvas_apply_zoom_mask(c_it->canvas, (eui_uint8_t)dat->trans_count);
+#endif
+    }
+}
+
+/* ---------- 5.5.6 虚函数表与创建 ---------- */
+
+static const esgui_page_vtable_t esgui_default_3d_menu_vtable = {
+    .on_create                = esgui_3d_menu_defalt_on_create,
+    .on_destroy               = esgui_3d_menu_defalt_on_destroy,
+    .on_draw                  = esgui_3d_menu_defalt_on_draw,
+    .special_item_draw        = ESGUI_NULL,
+    .get_special_item_draw_w  = ESGUI_NULL,
+    .on_input                 = esgui_3d_menu_defalt_on_input,
+    .on_focus_change          = esgui_3d_menu_defalt_on_focus_change,
+    .on_page_chenge           = esgui_3d_menu_default_on_page_change,
+};
+
+void ESGUI_Default3DMenuCreate(ESGUI_MenuPage_T *page, const char *title,
+                               ESGUI_MenuItem_T *items, eui_uint32_t item_num) {
+    if (page == ESGUI_NULL || items == ESGUI_NULL || item_num == 0) return;
+    memset(page, 0, sizeof(ESGUI_MenuPage_T));
+    page->items    = items;
+    page->title    = (title == ESGUI_NULL) ? "" : title;
+    page->item_num = (eui_uint16_t)item_num;
+    page->vtbl     = &esgui_default_3d_menu_vtable;
+}
+
+#endif /* (ESGUI_ENABLE_3D_MENU && ESGUI_ENABLE_3D) */
 
 
 /* ============================================================

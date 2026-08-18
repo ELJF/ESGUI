@@ -1,0 +1,4 @@
+source "$SIFLI_SDK/Kconfig.v2"
+source "$SIFLI_SDK/customer/boards/Kconfig.v2"
+source "D:/SiFli/SiFli-SDK/v2.4.6/customer/boards/sf32lb52-core_n16r16/hcpu/Kconfig.board"
+source "E:/bian_cheng/dan_pian_ji/STM/UI/ESGUI_Git/example/SIFLI/ESGUI/project/Kconfig.proj"
