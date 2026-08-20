@@ -3,6 +3,7 @@
 //
 
 #include "MY_BMP.h"
+#include "yue_xin_mao.h"
 
 const unsigned char BMP_Computer32x32[] =
 {
@@ -96,5 +97,16 @@ const unsigned char BMP_File32x32[] =
 };
 const Bitmap bmp_File32x32 = {32, 32, BMP_File32x32};
 
+const Bitmap farmes[] =
+    {
+    {32, 32, BMP_Computer32x32},
+    {32, 32, BMP_Setting32x32},
+    {8, 16, BMP_Lightning8x16},
+    {32, 32, BMP_MCU32x32},
+    {32, 32, BMP_Picture32x32},
+    {32, 32, BMP_File32x32}
+};
+
+;
 
 

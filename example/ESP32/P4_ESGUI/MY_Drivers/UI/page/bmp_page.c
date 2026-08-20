@@ -5,10 +5,13 @@
 #include "bmp_page.h"
 #include "MY_BMP.h"
 #include "ESGUI_PageDefaltVtbl.h"
+#include "ESGUI_GIF.h"
+#include "yue_xin_mao.h"
 
 #if ESGUI_ENABLE_BMP_MENU
 
 ESGUI_MenuPage_T bmp_page;
+
 
 //图形页面条目描述
 ESGUI_MenuItem_T bmp_menu_item[] =
@@ -19,5 +22,8 @@ ESGUI_MenuItem_T bmp_menu_item[] =
     {0,0,"闪电",&bmp_Lightning8x16,ESGUI_NULL,ESGUI_NULL},
     {0,0,"Picture",&bmp_Picture32x32,ESGUI_NULL,ESGUI_NULL},
     {0,0,"Setting",&bmp_Setting32x32,ESGUI_NULL,ESGUI_NULL},
+#if ESGUI_ENABLE_GIF
+    {0,0,"GIF\x03/7",&gif_yue_xin_mao,ESGUI_NULL,ESGUI_NULL},
+#endif
 };
 #endif

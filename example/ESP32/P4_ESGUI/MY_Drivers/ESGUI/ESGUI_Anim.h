@@ -198,6 +198,14 @@ void anim_stop_all(void* var);
  */
 void anim_update(eui_uint32_t tick);
 
+/**
+ * @brief 获取最近一次 anim_update 收到的系统 tick（ms）
+ * @return 当前系统时刻（ms）；尚未调用 anim_update 时返回 0
+ * @note   anim_update 由 UI 主循环周期性调用，因此本函数返回 UI 当前的
+ *         now_ms，可供 on_draw / 覆盖层等绘制回调直接作为时间基准。
+ */
+eui_uint32_t anim_get_tick(void);
+
 
 
 /**

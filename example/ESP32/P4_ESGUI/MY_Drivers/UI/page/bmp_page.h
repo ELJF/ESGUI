@@ -9,7 +9,7 @@
 
 #if (ESGUI_ENABLE_BMP_MENU)
 extern ESGUI_MenuPage_T bmp_page;
-extern ESGUI_MenuItem_T bmp_menu_item[6];
+extern ESGUI_MenuItem_T bmp_menu_item[7];
 #endif
 
 

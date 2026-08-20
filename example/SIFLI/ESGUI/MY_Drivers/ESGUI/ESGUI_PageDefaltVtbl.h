@@ -8,6 +8,11 @@
 
 #include "ESGUI.h"
 
+/* GIF 动图组件（BMP 菜单 GIF 条目依赖其类型定义） */
+#if ESGUI_ENABLE_GIF
+#include "ESGUI_GIF.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -95,6 +100,13 @@ typedef struct esgui_default_bmp_menu_dat {
     eui_uint16_t trans_count;       /**< 过渡遮罩级别（0~8） */
     eui_uint8_t  trans_active;      /**< 过渡动画是否运行中 */
     eui_uint8_t  first_push;        /**< 1=首次 Push（需要完整入场动画） */
+#if ESGUI_ENABLE_GIF
+    /* —— GIF 条目（名称末尾带 "\x03/7" 标记，icon 指向 ESGUI_GIF_T 描述符） —— */
+    eui_uint8_t  gif_is[ESGUI_BMP_MENU_MAX_ITEMS]; /**< 各项是否为 GIF（0/1），on_create 预扫描 */
+    ESGUI_GIF_T  gif_play;      /**< 当前焦点 GIF 的播放槽（描述信息从描述符装载，播放状态独立） */
+    const ESGUI_GIF_T *gif_desc;/**< 播放槽当前绑定的 GIF 描述符（焦点切换时重装载） */
+    eui_uint16_t gif_pulse;     /**< 脉冲动画变量：焦点 GIF 播放期间保持页面持续刷新 */
+#endif
 } ESGUI_DEFAULT_BMP_MENU_DAT;
 
 void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page);
@@ -103,6 +115,12 @@ ESGUI_MenuAction_T esgui_bmp_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Event
 void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx);
 void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action);
 void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page);
+#if ESGUI_ENABLE_GIF
+/* 特殊条目绘制系列：名称末尾带 "\x03/7" 标记的项按 GIF 显示
+ *（选中循环播放 / 未选中显示第 0 帧） */
+eui_uint16_t esgui_bmp_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx);
+eui_uint16_t esgui_bmp_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *page, eui_uint16_t indx);
+#endif
 void ESGUI_DefaultBMPMenuCreate(ESGUI_MenuPage_T *page, const char *title,
                                 ESGUI_MenuItem_T *items, eui_uint32_t item_num);
 

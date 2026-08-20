@@ -135,14 +135,6 @@
 #define ESGUI_TITLE_LINE_OFFSET  2
 #endif
 
-#ifndef ESGUI_LABEL_TMP_BUF_SIZE
-/**
- * @brief 临时文本缓冲区的最大长度（字节）
- * @note  用于去除标记符后的纯文本拷贝，需大于最长单条文本长度
- */
-#define ESGUI_LABEL_TMP_BUF_SIZE 64
-#endif
-
 #ifndef BMP_PAGE_DATA_POOL_SIZE
 /**
  * @brief BMP 菜单页面私有数据的静态内存池大小（槽位数）
@@ -415,6 +407,39 @@
 #ifndef ESGUI_3D_MENU_DATA_POOL_SIZE
 /** @brief 3D 菜单页面私有数据静态内存池大小（槽位数） */
 #define ESGUI_3D_MENU_DATA_POOL_SIZE  (ESGUI_MAX_MENU_DEPTH)
+#endif
+
+
+/* ============================================================
+ * 九、GIF 动图组件裁剪（ESGUI_GIF.c）
+ * ============================================================ */
+
+#ifndef ESGUI_ENABLE_GIF
+/**
+ * @brief 使能 GIF 动图组件（BMP 帧序列动画）
+ *
+ * 组件说明（详见 ESGUI_GIF.h）：
+ *  - 用一组 1bpp 页式位图（Bitmap，格式与 eui_draw_bitmap 一致）描述动画帧，
+ *    帧数据放入 const 数组（可存 Flash/ROM），零解析、零拷贝；
+ *  - ESGUI_GIFDraw 在任意位置 (x,y) 自动按时间推进帧并绘制，自动适配
+ *    裁剪栈与条带（buf_area）；支持重复播放 / 播完暂停两种播放模式；
+ *  - 绘制复用框架自带 eui_draw_bitmap，不绑定任何芯片或平台；
+ *  - 内存开销：播放状态仅约 16 字节 RAM（帧数据本身在 Flash）。
+ *
+ * @note  0=禁用，整个模块不参与编译（减少 Flash 占用）
+ */
+#define ESGUI_ENABLE_GIF   1
+#endif
+
+#ifndef ESGUI_BMP_MENU_MAX_ITEMS
+/**
+ * @brief BMP 菜单单页最大条目数（用于 GIF 条目标志缓存的静态数组大小）
+ * @note  仅当 ESGUI_ENABLE_GIF=1 时占用 ESGUI_BMP_MENU_MAX_ITEMS 字节 RAM；
+ *        帧数组与帧间隔由条目 icon 指向的 ESGUI_GIF_T 描述符记录，
+ *        菜单本身不重复记录；条目数超过上限时，超出的 GIF 条目按普通位图
+ *        （第 0 帧）显示。
+ */
+#define ESGUI_BMP_MENU_MAX_ITEMS  16
 #endif
 
 

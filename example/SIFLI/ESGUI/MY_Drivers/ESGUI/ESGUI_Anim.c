@@ -14,6 +14,8 @@ static anim_t* anim_active_head = ESGUI_NULL;
 // 内部自动分配标志位（最多 32 个并发"必须完成"动画）
 static eui_uint32_t s_used_ids = 0;      // 位图：哪些 ID 已被占用
 static eui_uint32_t s_done_ids = 0;    // 位图：哪些 ID 已完成
+// 最近一次 anim_update 收到的系统 tick（ms），供 on_draw 等需要当前时刻的模块读取
+static eui_uint32_t s_last_tick = 0;
 
 /* ========== 内部工具函数 ========== */
 
@@ -349,6 +351,10 @@ void anim_stop_all(void* var) {
 void anim_update(eui_uint32_t tick) {
     anim_t* cur = anim_active_head;
 
+    /* 记录最新 tick：即使当前无动画运行，也保持时刻新鲜，
+     * 供 ESGUI_GIFDraw 等需要 now_ms 的模块通过 anim_get_tick() 读取 */
+    s_last_tick = tick;
+
     while (cur) {
         anim_t* next = cur->next;
 
@@ -418,6 +424,17 @@ void anim_update(eui_uint32_t tick) {
 
         cur = next;
     }
+}
+
+/**
+ * @brief 获取最近一次 anim_update 收到的系统 tick（ms）
+ * @return 当前系统时刻（ms）；尚未调用 anim_update 时返回 0
+ * @note   anim_update 由 UI 主循环周期性调用（ESGUI_Tick → anim_tick_cb），
+ *         因此本函数返回的即是 UI 当前的 now_ms，可供绘制回调（on_draw /
+ *         覆盖层）直接作为时间基准使用，避免各模块自行维护时间源。
+ */
+eui_uint32_t anim_get_tick(void) {
+    return s_last_tick;
 }
 
 

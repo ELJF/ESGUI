@@ -32,6 +32,9 @@
 #include "ESGUI_BSP_BMP.h"
 #include "ESGUI_Widget.h"
 #include "ESGUI_3D.h"
+#if ESGUI_ENABLE_GIF
+#include "ESGUI_GIF.h"
+#endif
 
 
 #ifndef offsetof
@@ -195,23 +198,11 @@ static eui_int16_t canvas_get_height(const CanvasStripIter *it)
  * @brief 计算去除标记符后的纯文本显示宽度
  * @param label 原始文本（可能包含尾部标记符，如 "text\x03/0"）
  * @return 纯文本宽度（像素）
- * @note  若检测到 ESGUI_WIDGET_DEFAULT_MARK 标记，则截取标记前的内容计算宽度
- *        否则直接计算完整字符串宽度。用于焦点框宽度同步和长文本判断。
+ * @note  文本渲染器（eui_get_text_width/eui_draw_text*）遇到标记符前缀
+ *        '\x03' 即视为字符串结束，因此直接测量原串即为纯文本宽度。
  */
 static eui_uint16_t get_pure_text_width(const char *label)
 {
-    eui_uint16_t pure_len;
-    char marker_type;
-    if (ESGUI_WidgetCheckMarker(label, ESGUI_WIDGET_DEFAULT_MARK, &pure_len, &marker_type)) {
-        if (pure_len == 0) return 0;
-        char tmp[ESGUI_LABEL_TMP_BUF_SIZE];
-        eui_uint16_t copy_len = (pure_len < (ESGUI_LABEL_TMP_BUF_SIZE - 1))
-                          ? pure_len
-                          : (ESGUI_LABEL_TMP_BUF_SIZE - 1);
-        memcpy(tmp, label, copy_len);
-        tmp[copy_len] = '\0';
-        return (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, tmp);
-    }
     return (eui_uint16_t)eui_get_text_width(&ESGUI_DEFAULT_FONT, label);
 }
 #endif
@@ -1099,6 +1090,28 @@ static void bmp_page_data_free(ESGUI_DEFAULT_BMP_MENU_DAT *p)
 /* ---------- 5.2 BMP 菜单页面生命周期 ---------- */
 
 /**
+ * @brief 获取条目实际显示的位图指针（普通项 → icon 本身；GIF 项 → 描述符第 0 帧）
+ * @param page 页面指针
+ * @param idx  条目索引
+ * @param dat  页面数据（含 gif_is 标志缓存），可为 NULL
+ * @return 位图指针；非法条目返回 NULL
+ * @note  GIF 条目的 icon 指向 ESGUI_GIF_T 描述符（帧数组、帧间隔、循环次数
+ *        均由描述符记录），布局/焦点框等需要"单帧尺寸"的地方统一取第 0 帧。
+ */
+static const Bitmap *bmp_item_bitmap(ESGUI_MenuPage_T *page, eui_uint16_t idx,
+                                     const ESGUI_DEFAULT_BMP_MENU_DAT *dat) {
+    if (page == ESGUI_NULL || idx >= page->item_num) return ESGUI_NULL;
+    const void *icon = page->items[idx].icon;
+#if ESGUI_ENABLE_GIF
+    if (dat != ESGUI_NULL && idx < ESGUI_BMP_MENU_MAX_ITEMS && dat->gif_is[idx]) {
+        const ESGUI_GIF_T *g = (const ESGUI_GIF_T *)icon;
+        return (g != ESGUI_NULL && g->frames != ESGUI_NULL) ? &g->frames[0] : ESGUI_NULL;
+    }
+#endif /* ESGUI_ENABLE_GIF */
+    return (const Bitmap *)icon;
+}
+
+/**
  * @brief BMP 菜单页面创建回调
  * @param page 页面指针
  * @note  计算图片布局：
@@ -1121,9 +1134,21 @@ void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
     eui_uint16_t top_margin = dat->progress_bar_h + 4;
     dat->label_y = canvas_h - dat->font_height - 2;
     dat->label_anim_y = dat->label_y;
+#if ESGUI_ENABLE_GIF
+    /* 先扫描 GIF 条目（名称末尾带 "\x03/7" 标记，类型字符 '7'）：
+     * 仅记录"是/否 GIF"，帧数组与帧间隔由条目 icon 指向的 ESGUI_GIF_T
+     * 描述符自行记录，菜单无需重复记录任何播放参数。 */
+    for (eui_uint16_t i = 0; i < page->item_num && i < ESGUI_BMP_MENU_MAX_ITEMS; i++) {
+        char mch = '\0';
+        if (ESGUI_WidgetCheckMarker(page->items[i].label,
+                                    ESGUI_WIDGET_DEFAULT_MARK, ESGUI_NULL, &mch) && mch == '7') {
+            dat->gif_is[i] = 1;
+        }
+    }
+#endif /* ESGUI_ENABLE_GIF */
     eui_uint16_t max_bmp_h = 0;
     for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
+        const Bitmap *bmp = bmp_item_bitmap(page, i, dat);
         if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
     }
     eui_uint16_t separator_y = dat->label_y - 2;
@@ -1132,14 +1157,14 @@ void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
     page->items[0].x = 0;
     eui_int16_t rel_x = 0;
     for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
+        const Bitmap *bmp = bmp_item_bitmap(page, i, dat);
         if (bmp) {
             page->items[i].y = dat->bmp_y + (max_bmp_h - bmp->h) / 2;
         } else {
             page->items[i].y = dat->bmp_y;
         }
         if (i > 0) {
-            const Bitmap *prev_bmp = page->items[i - 1].icon;
+            const Bitmap *prev_bmp = bmp_item_bitmap(page, i - 1, dat);
             if (prev_bmp) rel_x += prev_bmp->w + ESGUI_BMP_ITEM_GAP;
             page->items[i].x = rel_x;
         }
@@ -1173,6 +1198,9 @@ void esgui_bmp_menu_defalt_on_destroy(ESGUI_MenuPage_T *page) {
         anim_stop_all(&dat->label_anim_y);
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->trans_count);  /* 停止过渡动画 */
+#if ESGUI_ENABLE_GIF
+        anim_stop_all(&dat->gif_pulse);   /* 停止 GIF 播放保持刷新的脉冲动画 */
+#endif
         bmp_page_data_free(dat);
         page->draw_data = ESGUI_NULL;
     }
@@ -1313,7 +1341,7 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t 
     eui_uint16_t canvas_h = canvas_get_height(c_it);
     eui_uint16_t focus_idx = page->focus_idx;
     eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-    const Bitmap *focus_bmp = page->items[focus_idx].icon;
+    const Bitmap *focus_bmp = bmp_item_bitmap(page, focus_idx, dat);
     eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
     eui_int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
     anim_t anim = {0};
@@ -1339,7 +1367,7 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t 
     eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
     eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
     eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
-    const Bitmap *new_bmp = page->items[focus_idx].icon;
+    const Bitmap *new_bmp = bmp_item_bitmap(page, focus_idx, dat);
     eui_uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
     eui_uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
     dat->box_start_w  = current_w;
@@ -1390,7 +1418,7 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
             dat->first_push = 0;
             eui_uint16_t focus_idx = page->focus_idx;
             eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-            const Bitmap *focus_bmp = page->items[focus_idx].icon;
+            const Bitmap *focus_bmp = bmp_item_bitmap(page, focus_idx, dat);
             eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
             eui_int16_t target_base = (canvas_w - focus_w) / 2 - focus_rel_x;
             eui_int16_t start_base = canvas_w;
@@ -1423,7 +1451,7 @@ void esgui_bmp_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAct
             anim_line.duration  = 1000;
             anim_line.path_type = ANIM_PATH_EASE_OUT;
             anim_start(&anim_line);
-            const Bitmap *new_bmp = page->items[focus_idx].icon;
+            const Bitmap *new_bmp = bmp_item_bitmap(page, focus_idx, dat);
             dat->box_start_w  = 0;
             dat->box_start_h  = 0;
             dat->box_target_w = new_bmp ? new_bmp->w + 4 : 0;
@@ -1471,6 +1499,31 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     eui_uint16_t canvas_w = canvas_get_width(c_it);
+#if ESGUI_ENABLE_GIF
+    /* 焦点 GIF 播放期间保持页面持续刷新：
+     * 启动/维持一个无限脉冲动画（anim_running=1 → 框架每 Tick 重绘），
+     * 否则静态页面不会每帧重绘，GIF 无法动起来。焦点离开 GIF 时停止。 */
+    {
+        bool focus_gif = (page->focus_idx < ESGUI_BMP_MENU_MAX_ITEMS) &&
+                         (dat->gif_is[page->focus_idx] != 0);
+        if (focus_gif) {
+            if (!anim_is_running_var(&dat->gif_pulse)) {
+                anim_t pulse = {0};
+                pulse.var         = &dat->gif_pulse;
+                pulse.exec_cb     = anim_cb_uint16;
+                pulse.start       = 0;
+                pulse.end         = 0;
+                pulse.duration    = 100;
+                pulse.path_type   = ANIM_PATH_LINEAR;
+                pulse.repeat_cnt  = 0xFFFF;   /* 无限循环 */
+                pulse.repeat_total = 0xFFFF;
+                anim_start(&pulse);
+            }
+        } else {
+            anim_stop_all(&dat->gif_pulse);
+        }
+    }
+#endif /* ESGUI_ENABLE_GIF */
     if (page->item_num > 0) {
         ESGUI_WidgetProgrssBarChangeLenPermille(c_it->canvas,
             2, 2, dat->progress_bar_h, canvas_w - 4,
@@ -1483,7 +1536,7 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
     canvas_clip_push(c_it->canvas, &bmp_clip);
     eui_int16_t base_x = page->items[0].x;
     for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
+        const Bitmap *bmp = bmp_item_bitmap(page, i, dat);
         if (!bmp) continue;
         eui_int16_t rel_x = bmp_item_rel_x(page, i);
         eui_int16_t x = base_x + rel_x;
@@ -1491,14 +1544,23 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
         eui_int16_t w = bmp->w;
         eui_int16_t h = bmp->h;
         if (x + w < 0 || x > (eui_int16_t)canvas_w) continue;
-        eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+#if ESGUI_ENABLE_GIF
+        if (i < ESGUI_BMP_MENU_MAX_ITEMS && dat->gif_is[i]) {
+            /* GIF 条目：绘制交给 special_item_draw
+             *（选中→循环播放，未选中→第 0 帧） */
+            esgui_bmp_menu_defalt_special_item_draw(page, i);
+        } else
+#endif /* ESGUI_ENABLE_GIF */
+        {
+            eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+        }
         if (i == page->focus_idx) {
             eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
             eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
             eui_uint16_t cur_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + d_w * dat->box_permille / 1000);
             eui_uint16_t cur_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + d_h * dat->box_permille / 1000);
             int fx = ((int)canvas_w - (int)cur_w) / 2;
-            const Bitmap *focus_bmp = page->items[i].icon;
+            const Bitmap *focus_bmp = bmp_item_bitmap(page, i, dat);
             int center_y = (int)page->items[i].y + (focus_bmp ? focus_bmp->h : 0) / 2;
             int fy = center_y - (int)cur_h / 2;
             ESGUI_WidgetBmpFocusBoxAnim(c_it->canvas, fx, fy, cur_w, cur_h);
@@ -1545,6 +1607,81 @@ void esgui_bmp_menu_defalt_on_draw(ESGUI_MenuPage_T *page) {
     }
 }
 
+#if ESGUI_ENABLE_GIF
+/* ---------- 5.5 BMP 菜单 GIF 特殊条目绘制（名称末尾带 "\x03/7" 标记） ----------
+ * GIF 条目由 ESGUI_GIF_T 描述符完整记录：帧数组（frames）、帧数（frame_count）、
+ * 帧间隔（delays/delay_ms）、循环次数（loop_count）。条目 icon 直接指向该描述符，
+ * 菜单本身不重复记录任何播放参数。 */
+
+/**
+ * @brief 获取 BMP 菜单特殊条目（GIF）所占宽度
+ * @param page 页面指针
+ * @param indx 条目索引
+ * @return GIF 条目返回第 0 帧宽度（像素）；非 GIF 条目返回 0
+ * @note  供布局预留/查询使用；BMP 菜单布局本身按第 0 帧尺寸计算，
+ *        因此本函数仅作为信息查询，不影响排列。
+ */
+eui_uint16_t esgui_bmp_menu_defalt_get_special_item_draw_w(ESGUI_MenuPage_T *page, eui_uint16_t indx)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || indx >= page->item_num) return 0;
+    ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
+    if (indx >= ESGUI_BMP_MENU_MAX_ITEMS || dat->gif_is[indx] == 0) return 0;
+    const ESGUI_GIF_T *g = (const ESGUI_GIF_T *)page->items[indx].icon;
+    return (g != ESGUI_NULL && g->frames != ESGUI_NULL) ? (eui_uint16_t)g->frames[0].w : 0;
+}
+
+/**
+ * @brief 绘制 BMP 菜单特殊条目（GIF）：名称末尾带 "\x03/7" 标记的项
+ * @param page 页面指针
+ * @param indx 条目索引
+ * @return 占用的宽度（像素，取第 0 帧宽）；非 GIF 条目返回 0
+ * @note  行为：
+ *        - 选中（page->focus_idx == indx）：把条目 icon 指向的 ESGUI_GIF_T
+ *          描述符（帧数组/帧间隔/循环次数）装载到页面播放槽，调用
+ *          ESGUI_GIFDraw 循环播放，时刻取 anim_get_tick()；
+ *          焦点切换到不同 GIF 时播放槽自动重建（重新从第 0 帧开始）。
+ *        - 未选中：仅绘制第 0 帧（静态图），并重置播放槽，
+ *          保证再次选中时从第 0 帧重新开始（避免 last_tick 冻结造成跳帧）。
+ *        位置由 page->items[0].x + bmp_item_rel_x() 与 items[indx].y 决定，
+ *        与 on_draw 中普通位图的布局公式一致。
+ */
+eui_uint16_t esgui_bmp_menu_defalt_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return 0;
+    if (indx >= page->item_num) return 0;
+    ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
+    if (indx >= ESGUI_BMP_MENU_MAX_ITEMS || dat->gif_is[indx] == 0) return 0;
+
+    /* 条目 icon → GIF 描述符（帧数组与帧间隔均由描述符记录） */
+    const ESGUI_GIF_T *desc = (const ESGUI_GIF_T *)page->items[indx].icon;
+    if (desc == ESGUI_NULL || desc->frames == ESGUI_NULL || desc->frame_count == 0) return 0;
+
+    CanvasStripIter *c_it = page->render_ctx;
+    eui_int16_t x = page->items[0].x + bmp_item_rel_x(page, indx);
+    eui_int16_t y = page->items[indx].y;
+
+    if (indx == page->focus_idx) {
+        /* 选中：循环播放。描述符变化（焦点从别的 GIF 移来）时，
+         * 把描述符的帧数组/帧间隔/循环次数装载进播放槽（播放状态清零） */
+        if (dat->gif_desc != desc) {
+            ESGUI_GIFInit(&dat->gif_play,
+                          desc->frames, desc->frame_count,
+                          desc->delays, desc->delay_ms, desc->loop_count);
+            dat->gif_desc = desc;
+        }
+        ESGUI_GIFDraw(c_it->canvas, &dat->gif_play, x, y, EUI_MODE_SET,
+                      anim_get_tick(), ESGUI_GIF_PLAY_LOOP);
+    } else {
+        /* 未选中：显示第 0 帧；若播放槽正绑定本 GIF，重置其播放状态 */
+        if (dat->gif_desc == desc) {
+            ESGUI_GIFReset(&dat->gif_play);
+        }
+        eui_draw_bitmap(c_it->canvas, x, y, &desc->frames[0], 1);
+    }
+    return (eui_uint16_t)desc->frames[0].w;
+}
+#endif /* ESGUI_ENABLE_GIF */
+
 /**
  * @brief BMP 菜单默认虚函数表
  */
@@ -1552,8 +1689,13 @@ static const esgui_page_vtable_t esgui_default_bmp_menu_vtable = {
     .on_create                = esgui_bmp_menu_defalt_on_create,
     .on_destroy               = esgui_bmp_menu_defalt_on_destroy,
     .on_draw                  = esgui_bmp_menu_defalt_on_draw,
+#if ESGUI_ENABLE_GIF
+    .special_item_draw        = esgui_bmp_menu_defalt_special_item_draw,
+    .get_special_item_draw_w  = esgui_bmp_menu_defalt_get_special_item_draw_w,
+#else
     .special_item_draw        = ESGUI_NULL,
     .get_special_item_draw_w  = ESGUI_NULL,
+#endif
     .on_input                 = esgui_bmp_defalt_on_input,
     .on_focus_change          = esgui_bmp_menu_defalt_on_focus_change,
     .on_page_chenge           = esgui_bmp_menu_default_on_page_change,
@@ -3817,7 +3959,7 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eu
     eui_uint16_t focus_idx = page->focus_idx;
     eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
     eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-    const Bitmap *focus_bmp = page->items[focus_idx].icon;
+    const Bitmap *focus_bmp = (const Bitmap *)page->items[focus_idx].icon;
     eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
     eui_int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
     anim_t anim = {0};
@@ -3833,7 +3975,7 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eu
     eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
     eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
     eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
-    const Bitmap *new_bmp = page->items[focus_idx].icon;
+    const Bitmap *new_bmp = (const Bitmap *)page->items[focus_idx].icon;
     eui_uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
     eui_uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
     dat->box_start_w  = current_w;

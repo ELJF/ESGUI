@@ -90,6 +90,8 @@ eui_int16_t eui_font_get_glyph_id(const Font *font, eui_uint32_t unicode)
  * @retval >=0   字符串总显示宽度（像素）
  * @note   遍历所有字符累加 adv_w（水平步进）。缺字字符按半行高占位。
  *         换行符 '\n' 不增加宽度。
+ *         保留控制字符 '\x03'（ESC，ESGUI 标记符前缀）：视为字符串结束，
+ *         其后内容（如标记类型 "/7"）不计入宽度 —— 标记符是不可见元数据。
  */
 int eui_get_text_width(const Font *font, const char *text)
 {
@@ -103,6 +105,9 @@ int eui_get_text_width(const Font *font, const char *text)
     eui_int16_t  prev_gid = -2;   /* -2 表示缓存无效 */
 
     while (text[i]) {
+        /* 标记符前缀 '\x03'：其后为不可见元数据，结束测量 */
+        if (text[i] == '\x03') break;
+
         eui_uint32_t cp = utf8_decode(text, &i);
         eui_int16_t gid;
 
@@ -133,6 +138,8 @@ int eui_get_text_width(const Font *font, const char *text)
  *         字形实际绘制位置 = (cx + ofs_x, cy + base_line + ofs_y)。
  *         遇到 '\n' 时自动换行。
  *         当 gy 是 8 的倍数且 box_h 是 8 的倍数时，走整页快速路径。
+ *         保留控制字符 '\x03'（ESC，ESGUI 标记符前缀）：视为字符串结束，
+ *         其后内容（如标记类型 "/7"）不绘制 —— 标记符是不可见元数据。
  */
 int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, eui_uint8_t color)
 {
@@ -148,6 +155,8 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, e
     eui_int16_t  prev_gid = -2;   /* -2 表示缓存无效 */
 
     while (text[i]) {
+        /* 标记符前缀 '\x03'：其后为不可见元数据，结束绘制 */
+        if (text[i] == '\x03') break;
         if (text[i] == '\n') {
             if (cx > max_x) max_x = cx;
             cx = x;
@@ -207,6 +216,8 @@ int eui_draw_text(Canvas *c, int x, int y, const Font *font, const char *text, e
  * @retval >=0     实际绘制宽度（像素）
  * @note   遇到换行符或超出 max_w 时提前终止。
  *         缺字字符按半行高占位，若剩余空间不足则截断。
+ *         保留控制字符 '\x03'（ESC，ESGUI 标记符前缀）：视为字符串结束，
+ *         其后内容（如标记类型 "/7"）不绘制 —— 标记符是不可见元数据。
  */
 int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *text, eui_uint8_t color, int max_w)
 {
@@ -223,6 +234,8 @@ int eui_draw_text_clip(Canvas *c, int x, int y, const Font *font, const char *te
 
     while (text[i]) {
         if (text[i] == '\n') break;
+        /* 标记符前缀 '\x03'：其后为不可见元数据，结束绘制 */
+        if (text[i] == '\x03') break;
 
         eui_uint32_t cp = utf8_decode(text, &i);
         eui_int16_t gid;

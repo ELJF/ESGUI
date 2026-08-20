@@ -34,7 +34,7 @@
 - 刚刚忘记更新字体生成器了，现在补上
 
 ### V2.0.0 (2026-8-18)
-- ### ↓↓↓ 新增 ↓↓↓ 
+- ### ↓↓↓ 新增 ↓↓↓
   - ### 多线程支持：
   - 无锁命令队列（单生产者-单消费者），Async 函数可从任意任务/中断安全调用，UI 线程在 `ESGUI_Tick` 内统一处理（Actor 模式）
   - `ESGUI_ENABLE_MULTITHREAD` 多线程支持开关：=1 走队列，=0 退化为直接同步调用（零队列开销）
@@ -61,7 +61,7 @@
       - SIFLI工程默认开启多线程支持
   - `ESGUI_PageDefaltVtbl.c` 更名为 `ESGUI_DefaultConfig.c`**（默认虚函数表实现），配置头统一为 `ESGUI_DefaultConfig.h`
   - `ESGUI_T`的`draw_data`成员更名为`draw_ctx`**
-  - 示例页面与`ESGUI`配置同步  
+  - 示例页面与`ESGUI`配置同步
   - 示例工程文件结构**
   - 新增 `page/` 目录：存放菜单页面描述（文本页/BMP页/3D页等）
   - 新增 `model/` 目录：存放 3D 模型数据（顶点/边）
@@ -69,6 +69,12 @@
 - ### ↓↓↓修复↓↓↓
   - 字体生成器生成的字体文件`NULL`未定义问题，现已改为`ESGUI_NULL`
   - 长文本作为首条时进入页面不滚动的问题
+
+### V2.1.0 (2026-8-21)
+- 新增GIF组件,添加ESGUI对GIF的支持
+- 新增GIF取模软件`ESGUI_GIF_Create.exe`，可以方便的生成GIF数组
+- 所有示例工程已更新
+- BMP菜单已适配GIF
 
 # ↓↓ESGUI介绍↓↓
 ESGUI（Embedded Simple GUI）是一个面向单色 OLED（如 SSD1315/SSD1306）的轻量级菜单框架。
@@ -165,9 +171,10 @@ ESGUI_Git/
 │   │   ├── ESGUI_BSP_Text.c / .h     # UTF-8 文本渲染与页式字模
 │   │   └── ESGUI_BSP_BMP.c / .h      # 1bpp 页式位图绘制
 │   └── Font/
-│       ├── eui_test_font.c / .h    # 示例字体（12px，英文+部分中文）
+│       ├eui_test_font.c / .h    # 示例字体（12px，英文+部分中文）
 │       └── ...                     # 用户生成的自定义字体
 ├── ESGUI字体生成器.exe              # 字体生成工具
+|── ESGUI_GIF_Create.exe            #GIF取模工具
 └── example/                        # 示例工程（STM32 / ESP32 / 思澈 等）
     ├── app/
     │   ├── page/                   # 【V2.0.0 新增】菜单页面描述（文本页/BMP页/3D页等）
@@ -215,6 +222,12 @@ ESGUI_Git/
 | `ESGUI_ANIM_ENABLE_OVERSHOOT` | 1   | 冲过缓动曲线 |
 | `ESGUI_ANIM_ENABLE_BOUNCE` | 1   | 弹跳缓动曲线 |
 | `ESGUI_ANIM_ENABLE_STEP` | 1   | 阶跃缓动曲线 |
+
+### GIF
+| 宏 | 默认值 | 说明 |
+|---|--------|---|
+| `ESGUI_ENABLE_GIF` | 1      | 使能 GIF 动图组件 |
+| `ESGUI_BMP_MENU_MAX_ITEMS` | 16     | BMP 菜单单页最大条目数（用于 GIF 条目标志缓存的静态数组大小） |
 
 ### 显示效果
 
@@ -547,7 +560,7 @@ anim_start(&a);                         // 启动（若同变量已有动画，�
 ### 字体要求
 ESGUI 使用 **页式 1bpp 字模**（与 SSD1315 GDDRAM 同布局），工具链如下：
 
-1. 位图用 **PCtoLCD2002** / **Image2LCD** 生成常规水平字模（高位在前、从左到右、从上到下）。 
+1. 位图用 **PCtoLCD2002** / **Image2LCD** 生成常规水平字模（高位在前、从左到右、从上到下）。
 2. 字体使用本仓库提供的 **`ESGUI字体生成器.exe`** 将水平字模转换为 **页式格式**。
 3. 将生成的 `.c` 文件放入 `ESGUI/Font/`，并在代码中替换 `ESGUI_DEFAULT_FONT` 宏。
 
