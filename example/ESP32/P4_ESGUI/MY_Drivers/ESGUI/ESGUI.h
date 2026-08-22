@@ -62,7 +62,7 @@ struct esgui_overlay {
 
 #if ESGUI_ENABLE_MULTITHREAD
 
-/* ==================== 无锁命令队列（单生产者-单消费者） ==================== */
+/* ==================== 命令结构（主队列与生产者收件箱共用） ==================== */
 
 typedef enum {
     ESGUI_CMD_KEY = 0,          /**< 按键事件 */
@@ -72,7 +72,13 @@ typedef enum {
     ESGUI_CMD_OVERLAY_VISIBLE,  /**< 设置覆盖层可见性 */
     ESGUI_CMD_ANIM_START,       /**< 启动动画 */
     ESGUI_CMD_ANIM_STOP_ALL,    /**< 按 var 停止动画 */
+    ESGUI_CMD_MENU_ITEM,        /**< 运行时条目增删（异步版，见 ESGUI_MenuPage*ItemAsync） */
 } ESGUI_CmdType_t;
+
+/* ESGUI_CMD_MENU_ITEM 的操作类型 */
+#define ESGUI_MENU_ITEM_OP_ADD      0   /**< 末尾追加 */
+#define ESGUI_MENU_ITEM_OP_INSERT   1   /**< 指定位置插入 */
+#define ESGUI_MENU_ITEM_OP_REMOVE   2   /**< 删除指定条目 */
 
 typedef struct {
     ESGUI_CmdType_t type;
@@ -83,8 +89,19 @@ typedef struct {
         struct { ESGUI_Overlay_T *ov; bool visible; } overlay_vis; /**< set visible */
         struct { anim_t *a; } anim_start;                          /**< 动画配置（须保持有效） */
         struct { void *var; } anim_stop_all;                       /**< 匹配的动画 var */
+        struct {                                                 /**< 运行时条目增删（值拷贝，UI 线程执行） */
+            ESGUI_MenuPage_T *page;    /**< 目标页面/弹窗（须保持有效） */
+            eui_uint16_t idx;          /**< Insert/Remove 的索引（Add 忽略） */
+            eui_uint8_t  op;           /**< ESGUI_MENU_ITEM_OP_* */
+            ESGUI_MenuItem_T item;     /**< 条目值拷贝（label/icon 等指针须保持有效） */
+        } menu_item;
     } u;
 } ESGUI_Cmd_T;
+
+/* ==================== 无锁命令队列（单生产者-单消费者） ====================
+ * 由 ESGUI_ENABLE_CMD_QUEUE 控制（0=主队列方式整体剔除）。 */
+
+#if ESGUI_ENABLE_CMD_QUEUE
 
 typedef struct {
     ESGUI_Cmd_T cmds[ESGUI_CMD_QUEUE_SIZE];
@@ -93,7 +110,12 @@ typedef struct {
     volatile eui_uint32_t tail;   /**< 消费者写指针 */
 } ESGUI_CmdQueue_T;
 
-/* ==================== 多生产者收拢（单生产者收件箱） ==================== */
+#endif /* ESGUI_ENABLE_CMD_QUEUE */
+
+/* ==================== 多生产者收拢（单生产者收件箱） ====================
+ * 由 ESGUI_ENABLE_PRODUCER_BOX 控制（0=消息盒方式整体剔除）。 */
+
+#if ESGUI_ENABLE_PRODUCER_BOX
 
 /**
  * @brief 生产者收件箱（单生产者-单消费者，无锁）
@@ -109,6 +131,8 @@ typedef struct esgui_producer_box {
     volatile eui_uint32_t tail;   /**< 消费者（UI 线程）读指针 */
 } ESGUI_ProducerBox_T;
 
+#endif /* ESGUI_ENABLE_PRODUCER_BOX */
+
 #endif /* ESGUI_ENABLE_MULTITHREAD */
 
 
@@ -122,12 +146,15 @@ typedef struct esgui {
     ESGUI_MenuCtrl_T menu_ctrl;
 
 #if ESGUI_ENABLE_MULTITHREAD
+#if ESGUI_ENABLE_CMD_QUEUE
     /* 命令队列：ESGUI_FeedKey / ESGUI_*Async 入队，ESGUI_Tick 出队处理 */
     ESGUI_CmdQueue_T cmd_queue;
-
+#endif
+#if ESGUI_ENABLE_PRODUCER_BOX
     /* 多生产者收拢：各任务注册自己的 SPSC 收件箱，UI 线程在 Tick 内轮询收拢 */
     ESGUI_ProducerBox_T *producer_boxes[ESGUI_MAX_PRODUCER];
     eui_uint8_t producer_box_count;
+#endif
 #endif
 
     /* 覆盖层列表：常驻显示的组件，叠加在页面/弹窗之上（下标越小越靠底层） */
@@ -164,7 +191,17 @@ void ESGUI_HandleActionAsync(ESGUI_T *ui, ESGUI_MenuAction_T act);
 void ESGUI_AnimStartAsync(ESGUI_T *ui, anim_t *a);
 void ESGUI_AnimStopAllAsync(ESGUI_T *ui, void *var);
 
+/* 异步运行时条目增删：从任意任务投递，UI 线程在 ESGUI_Tick 内执行（等效同步版）。
+ * 多任务并发时请使用 ESGUI_ProducerBox 消息盒投递（命令结构共用，注册/创建由用户负责）。
+ * 前提与同步版一致：page/条目内指针须保持有效直到 UI 线程执行。 */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+void ESGUI_MenuPageAddItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, const ESGUI_MenuItem_T *item);     // 末尾追加
+void ESGUI_MenuPageInsertItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, eui_uint16_t idx, const ESGUI_MenuItem_T *item); // 指定位置插入
+void ESGUI_MenuPageRemoveItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, eui_uint16_t idx);             // 删除指定条目
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
+
 #if ESGUI_ENABLE_MULTITHREAD
+#if ESGUI_ENABLE_PRODUCER_BOX
 /* ==================== 生产者收件箱（多生产者收拢） ====================
  * 当有多个任务需要调用 UI 时，为每个任务分配一个收件箱并注册：
  *   任务内    ：ESGUI_ProducerBoxPushKey / PushAction / Push 入自己的收件箱（SPSC 无锁）
@@ -185,6 +222,7 @@ void ESGUI_ProducerBoxPushKey(ESGUI_ProducerBox_T *box, ESGUI_EventCode_t key, e
 
 /** @brief 便捷：投递菜单动作（等价于 ESGUI_HandleActionAsync 的异步版） */
 void ESGUI_ProducerBoxPushAction(ESGUI_ProducerBox_T *box, ESGUI_MenuAction_T act);
+#endif /* ESGUI_ENABLE_PRODUCER_BOX */
 #endif /* ESGUI_ENABLE_MULTITHREAD */
 
 /* UI 线程调用：先取出并处理排队的命令（按键 + 菜单动作），再更新动画与绘制 */

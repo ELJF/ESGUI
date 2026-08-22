@@ -75,6 +75,13 @@ void ESGUI_DefaltTextMenuCreate(ESGUI_MenuPage_T *page,
                                 ESGUI_MenuItem_T *items, const char *title,
                                 eui_uint32_t item_num);
 
+/* 动态文本菜单（由 ESGUI_ENABLE_DYNAMIC_TEXT_MENU 控制）：
+ * 内部 malloc 条目数组（容量 cap），页面销毁时自动 free；
+ * 创建后可用 ESGUI_MenuPageAddItem 等 API 动态填充（需 ESGUI_ENABLE_MENU_RUNTIME_ITEMS）。 */
+#if ESGUI_ENABLE_DYNAMIC_TEXT_MENU
+bool ESGUI_DynamicTextMenuCreate(ESGUI_MenuPage_T *page, const char *title, eui_uint16_t cap);
+#endif /* ESGUI_ENABLE_DYNAMIC_TEXT_MENU */
+
 #endif /* ESGUI_ENABLE_TEXT_MENU */
 
 /* ========== 默认 BMP 菜单 ========== */

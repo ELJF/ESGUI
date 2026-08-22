@@ -11,6 +11,9 @@
 #include "model_page.h"
 #include "MY_BMP.h"
 #include "model_3d.h"
+#if ESGUI_ENABLE_GIF
+#include "gif_yue_xin_mao_32x32.h"
+#endif
 
 #if ESGUI_ENABLE_TEXT_MENU
 
@@ -270,6 +273,9 @@ static ESGUI_MenuItem_T bmp_list_popwindow_item[] =
     {0,0,"Computer",&bmp_Computer32x32,ESGUI_NULL,ESGUI_NULL},
     {0,0,"File",&bmp_File32x32,ESGUI_NULL,ESGUI_NULL},
     {0,0,"MCU",&bmp_MCU32x32,ESGUI_NULL,ESGUI_NULL},
+#if ESGUI_ENABLE_GIF
+    {0,0,"GIF\x03/7",&gif_gif_yue_xin_mao_32x32,ESGUI_NULL,ESGUI_NULL},
+#endif
 };
 
 
@@ -294,6 +300,80 @@ static ESGUI_MenuAction_T bmp_list_scroll_window_item_on_enter(ESGUI_MenuPage_T 
 #endif
 
 
+
+
+
+
+/* ===== 动态菜单演示（动态列表页） =====
+ * 依赖 ESGUI_ENABLE_DYNAMIC_TEXT_MENU（动态创建函数）+ ESGUI_ENABLE_MENU_RUNTIME_ITEMS（增删 API），
+ * 两个宏任一关闭时本演示整体裁剪。
+ * 动态菜单：条目数组由 ESGUI_DynamicTextMenuCreate 内部 malloc，页面销毁时自动 free，
+ *          增删 API 需在 UI 线程（on_enter 回调）中调用。 */
+#if (ESGUI_ENABLE_DYNAMIC_TEXT_MENU && ESGUI_ENABLE_MENU_RUNTIME_ITEMS)
+
+static ESGUI_MenuPage_T dyn_page;               /* 动态列表页面实例（页面结构体本身仍由调用者提供） */
+static char dyn_label_buf[12][24];              /* 动态条目标签缓冲区 */
+static eui_uint16_t dyn_added = 0;              /* 已动态添加的条目数（≤12） */
+
+//增加条目（末尾追加）
+static ESGUI_MenuAction_T dyn_add_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
+    (void)arg;
+    if (dyn_added >= 12) return (ESGUI_MenuAction_T){ACT_NONE,ESGUI_NULL};
+    ESGUI_MenuItem_T it = {0};
+    snprintf(dyn_label_buf[dyn_added], sizeof(dyn_label_buf[0]), "动态条目 %d", dyn_added + 1);
+    it.label = dyn_label_buf[dyn_added];
+    if (ESGUI_MenuPageAddItem(page, &it)) {
+        dyn_added++;
+    }
+    return (ESGUI_MenuAction_T){ACT_REFRESH,ESGUI_NULL};
+}
+
+//删除焦点条目
+static ESGUI_MenuAction_T dyn_remove_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
+    (void)arg;
+    ESGUI_MenuPageRemoveItem(page, page->focus_idx);
+    return (ESGUI_MenuAction_T){ACT_REFRESH,ESGUI_NULL};
+}
+
+//在焦点条目之前插入
+static ESGUI_MenuAction_T dyn_insert_item_on_enter(ESGUI_MenuPage_T *page,void *arg) {
+    (void)arg;
+    if (dyn_added >= 12) return (ESGUI_MenuAction_T){ACT_NONE,ESGUI_NULL};
+    ESGUI_MenuItem_T it = {0};
+    snprintf(dyn_label_buf[dyn_added], sizeof(dyn_label_buf[0]), "插入条目 %d", dyn_added + 1);
+    it.label = dyn_label_buf[dyn_added];
+    if (ESGUI_MenuPageInsertItem(page, page->focus_idx, &it)) {
+        dyn_added++;
+    }
+    return (ESGUI_MenuAction_T){ACT_REFRESH,ESGUI_NULL};
+}
+
+//初始化动态列表演示页（每次进入重新创建，并重置动态条目计数）
+static void dyn_page_init(void) {
+    dyn_added = 0;
+    /* 内部 malloc 初始容量 12 的条目数组；创建后只有 1 个占位条目，
+     * 改写占位条目为第一个操作项（RemoveItem 要求至少保留 1 条，不能删除占位），
+     * 再追加其余操作项。条目加满 12 后 Add 会自动 realloc 翻倍扩容。 */
+    if (!ESGUI_DynamicTextMenuCreate(&dyn_page, "动态列表演示", 12)) return;
+    dyn_page.items[0].label    = "[增加条目]";
+    dyn_page.items[0].on_enter = dyn_add_item_on_enter;
+    ESGUI_MenuItem_T it = {0};
+    it.label    = "[删除焦点条目]";
+    it.on_enter = dyn_remove_item_on_enter;
+    ESGUI_MenuPageAddItem(&dyn_page, &it);
+    it.label    = "[在焦点前插入]";
+    it.on_enter = dyn_insert_item_on_enter;
+    ESGUI_MenuPageAddItem(&dyn_page, &it);
+}
+
+//文本菜单进入动态列表演示页
+static ESGUI_MenuAction_T dyn_page_on_enter(ESGUI_MenuPage_T *page,void *arg) {
+    (void)page;
+    dyn_page_init();
+    return (ESGUI_MenuAction_T){ACT_PUSH_PAGE,arg};
+}
+
+#endif /* ESGUI_ENABLE_DYNAMIC_TEXT_MENU && ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
 
 
 
@@ -370,6 +450,10 @@ static ESGUI_MenuItem_T text_menu_item[] =
 
 #if ESGUI_ENABLE_POPUP_BMPLIST_SCROLL_TITLE
     {0,0,"滚动图片窗",ESGUI_NULL,bmp_list_scroll_window_item_on_enter,&u16_val},
+#endif
+
+#if (ESGUI_ENABLE_DYNAMIC_TEXT_MENU && ESGUI_ENABLE_MENU_RUNTIME_ITEMS)
+    {0,0,"动态列表演示",ESGUI_NULL,dyn_page_on_enter,&dyn_page},
 #endif
 };
 

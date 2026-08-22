@@ -4,6 +4,9 @@
 
 #include "ESGUI_Menu.h"
 #include "string.h"
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+#include <stdlib.h>   /* 运行时增删（动态菜单）：realloc */
+#endif
 
 /**
  * @brief 初始化菜单控制器
@@ -217,3 +220,122 @@ void ESGUI_MenuCtrlExecPendingPop(ESGUI_MenuCtrl_T *emc) {
     emc->pending_pop = 0;
     emc->pending_done = 0;
 }
+
+
+/* ==================== 运行时条目增删 ====================
+ * 由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除，静态条目系统不受影响）。
+ * 动态菜单（item_auto_expand=1）支持容量自适应：
+ *   增加/插入容量不足 → realloc 翻倍扩容；删除后容量 > 2×条目数 → 缩容。
+ * 静态数组（item_auto_expand=0）绝不 realloc。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+
+/**
+ * @brief 条目结构变化后的统一收尾：通知页面重排布局
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ */
+static void menu_page_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    if (page == ESGUI_NULL || page->vtbl == ESGUI_NULL) return;
+    if (page->vtbl->on_relayout) {
+        page->vtbl->on_relayout(page, old_focus, new_focus);
+    }
+}
+
+/**
+ * @brief 扩容条目数组（容量翻倍）
+ * @param page 页面指针
+ * @return true=扩容成功；false=未启用自动扩容 / realloc 失败 / 已达上限
+ * @note  仅动态菜单（item_auto_expand=1）生效；新扩容区域清零。
+ */
+static bool menu_page_grow(ESGUI_MenuPage_T *page)
+{
+    if (page == ESGUI_NULL || page->items == ESGUI_NULL) return false;
+    if (page->item_auto_expand == 0 || page->item_cap == 0) return false;   /* 静态数组/未启用 */
+    eui_uint32_t new_cap = (eui_uint32_t)page->item_cap * 2u;
+    if (new_cap > 0xFFFFu) new_cap = 0xFFFFu;                               /* item_cap 为 u16，封顶 */
+    if (new_cap <= page->item_cap) return false;                            /* 已达上限 */
+    ESGUI_MenuItem_T *p = (ESGUI_MenuItem_T *)ESGUI_REALLOC(page->items,
+                            (size_t)new_cap * sizeof(ESGUI_MenuItem_T));
+    if (p == ESGUI_NULL) return false;                                      /* 失败保持原状态 */
+    memset(&p[page->item_cap], 0, ((size_t)new_cap - page->item_cap) * sizeof(ESGUI_MenuItem_T));
+    page->items = p;
+    page->item_cap = (eui_uint16_t)new_cap;
+    return true;
+}
+
+/**
+ * @brief 缩容条目数组（容量 > 2×条目数 时缩到当前条目数，保底 4 条）
+ * @param page 页面指针
+ * @note  仅动态菜单（item_auto_expand=1）生效；realloc 失败时保持原容量，不影响功能。
+ */
+static void menu_page_shrink(ESGUI_MenuPage_T *page)
+{
+    if (page == ESGUI_NULL || page->items == ESGUI_NULL) return;
+    if (page->item_auto_expand == 0) return;
+    if (page->item_cap <= 4) return;                                        /* 保底容量，避免缩了又扩的抖动 */
+    if (page->item_cap <= (eui_uint16_t)(page->item_num * 2u)) return;      /* 未超 2 倍，不缩 */
+    eui_uint16_t new_cap = (page->item_num < 4) ? 4 : page->item_num;
+    ESGUI_MenuItem_T *p = (ESGUI_MenuItem_T *)ESGUI_REALLOC(page->items,
+                            (size_t)new_cap * sizeof(ESGUI_MenuItem_T));
+    if (p == ESGUI_NULL) return;                                            /* 失败保持原容量 */
+    page->items = p;
+    page->item_cap = new_cap;
+}
+
+bool ESGUI_MenuPageAddItem(ESGUI_MenuPage_T *page, const ESGUI_MenuItem_T *item)
+{
+    if (page == ESGUI_NULL || item == ESGUI_NULL || page->items == ESGUI_NULL) return false;
+    if (page->item_num >= page->item_cap) {
+        if (!menu_page_grow(page)) return false;                            /* 容量不足：静态返回 false，动态自动扩容 */
+    }
+    page->items[page->item_num] = *item;
+    page->item_num++;
+    menu_page_relayout(page, page->focus_idx, page->focus_idx);
+    return true;
+}
+
+bool ESGUI_MenuPageInsertItem(ESGUI_MenuPage_T *page, eui_uint16_t idx, const ESGUI_MenuItem_T *item)
+{
+    if (page == ESGUI_NULL || item == ESGUI_NULL || page->items == ESGUI_NULL) return false;
+    if (idx > page->item_num) idx = page->item_num;                         /* 越界视为尾部插入 */
+    if (page->item_num >= page->item_cap) {
+        if (!menu_page_grow(page)) return false;                            /* 容量不足：静态返回 false，动态自动扩容 */
+    }
+    eui_uint16_t old_focus = page->focus_idx;
+    memmove(&page->items[idx + 1], &page->items[idx],
+            (size_t)(page->item_num - idx) * sizeof(ESGUI_MenuItem_T));
+    page->items[idx] = *item;
+    page->item_num++;
+    /* 插入位置在焦点前/焦点处：焦点后移一位，保持同一逻辑条目被选中 */
+    if (idx <= old_focus) page->focus_idx = old_focus + 1;
+    menu_page_relayout(page, old_focus, page->focus_idx);
+    return true;
+}
+
+bool ESGUI_MenuPageRemoveItem(ESGUI_MenuPage_T *page, eui_uint16_t idx)
+{
+    if (page == ESGUI_NULL || page->items == ESGUI_NULL) return false;
+    if (page->item_num <= 1 || idx >= page->item_num) return false;         /* 至少保留 1 条，避免空菜单 */
+    eui_uint16_t old_focus = page->focus_idx;
+    if (idx < old_focus) {
+        page->focus_idx = old_focus - 1;                                    /* 删除项在焦点前：焦点顺移 */
+    } else if (idx == old_focus) {
+        /* 删除焦点项：焦点落在同下标的后继条目上；若删除的是最后一条则回退 */
+        page->focus_idx = old_focus;
+        if (page->focus_idx >= page->item_num - 1) {
+            page->focus_idx = page->item_num - 2;
+        }
+    }
+    /* else：删除项在焦点后，焦点不变 */
+    memmove(&page->items[idx], &page->items[idx + 1],
+            (size_t)(page->item_num - 1 - idx) * sizeof(ESGUI_MenuItem_T));
+    page->item_num--;
+    menu_page_shrink(page);                                                 /* 动态菜单：容量超 2 倍时缩容 */
+    menu_page_relayout(page, old_focus, page->focus_idx);
+    return true;
+}
+
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */

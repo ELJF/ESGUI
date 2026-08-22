@@ -3,7 +3,6 @@
 //
 
 #include "MY_BMP.h"
-#include "yue_xin_mao.h"
 
 const unsigned char BMP_Computer32x32[] =
 {

@@ -22,11 +22,35 @@
 
 #ifndef ESGUI_ENABLE_MULTITHREAD
 /**
- * @brief 多线程支持开关
- * @note  1 = 开启：所有 Async 入口走无锁命令队列（可从任意任务/中断调用）
+ * @brief 多线程支持总开关
+ * @note  1 = 开启：Async 入口走无锁队列（可从任意任务/中断调用）
  *        0 = 关闭：Async 入口退化为直接同步执行（单线程，零队列开销，省内存）
  */
 #define ESGUI_ENABLE_MULTITHREAD  1
+#endif
+
+#ifndef ESGUI_ENABLE_CMD_QUEUE
+/**
+ * @brief 主命令队列方式开关（Async 函数投递到主队列）
+ * @note  依赖 ESGUI_ENABLE_MULTITHREAD=1。
+ *        1 = 开启（默认）：ESGUI_FeedKey / ESGUI_*Async 入主命令队列，
+ *            UI 线程 Tick 内统一处理（单任务跨线程调用的方式）；
+ *        0 = 关闭：上述 Async 入口退化为直接同步执行，主队列类型/处理代码剔除
+ *            （此时跨线程调用需改用 ESGUI_ENABLE_PRODUCER_BOX 消息盒）。
+ */
+#define ESGUI_ENABLE_CMD_QUEUE  1
+#endif
+
+#ifndef ESGUI_ENABLE_PRODUCER_BOX
+/**
+ * @brief 生产者消息盒开关（多任务各自收件箱投递）
+ * @note  依赖 ESGUI_ENABLE_MULTITHREAD=1。
+ *        1 = 开启（默认）：ESGUI_ProducerBox* 系列（Init/Register/Push/PushKey/PushAction）
+ *            与 UI 线程收件箱轮询可用（多生产者收拢方式）；
+ *        0 = 关闭：消息盒类型与函数剔除（此时多任务并发请用主命令队列，
+ *            但主队列为 SPSC，多生产者需外部串行化）。
+ */
+#define ESGUI_ENABLE_PRODUCER_BOX  1
 #endif
 
 #ifndef ESGUI_CMD_QUEUE_SIZE
@@ -187,6 +211,54 @@
  * @note  0=禁用，剔除 esgui_bmp_menu_* 系列函数
  */
 #define ESGUI_ENABLE_BMP_MENU    1
+#endif
+
+
+/* ============================================================
+ * 二.5 运行时条目增删 / 动态菜单（均可独立裁剪）
+ * ============================================================ */
+
+#ifndef ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+/**
+ * @brief 使能"运行时增删条目"总开关
+ * @note  1=开启 ESGUI_MenuPageAddItem / InsertItem / RemoveItem 三个 API，
+ *        以及各页面 on_relayout 重排机制（文本/BMP/3D 菜单、文本列表/BMP 列表弹窗）。
+ *        0=整套机制剔除（API 不存在、relayout 回调不注册），静态条目系统不受影响。
+ */
+#define ESGUI_ENABLE_MENU_RUNTIME_ITEMS  1
+#endif
+
+#ifndef ESGUI_ENABLE_DYNAMIC_TEXT_MENU
+/**
+ * @brief 使能动态文本菜单（ESGUI_DynamicTextMenuCreate）
+ * @note  依赖 ESGUI_ENABLE_TEXT_MENU=1；内部 malloc 条目数组，页面销毁时自动 free。
+ *        建议同时开启 ESGUI_ENABLE_MENU_RUNTIME_ITEMS（动态菜单的价值在于运行时增删）。
+ */
+#define ESGUI_ENABLE_DYNAMIC_TEXT_MENU  1
+#endif
+
+
+/* ============================================================
+ * 二.6 动态内存分配接口（动态菜单 / 运行时增删使用，可自定义）
+ * ============================================================
+ * 默认使用标准库 malloc/free/realloc；
+ * 如需改用自定义内存池或 ESP-IDF heap_caps 接口（如 PSRAM），
+ * 在编译前覆盖这三个宏即可，例如：
+ *   #define ESGUI_MALLOC(size)   heap_caps_malloc((size), MALLOC_CAP_SPIRAM)
+ *   #define ESGUI_FREE(ptr)      heap_caps_free(ptr)
+ *   #define ESGUI_REALLOC(p,s)   heap_caps_realloc((p), (s), MALLOC_CAP_SPIRAM)
+ */
+
+#ifndef ESGUI_MALLOC
+#define ESGUI_MALLOC(size)   malloc(size)
+#endif
+
+#ifndef ESGUI_FREE
+#define ESGUI_FREE(ptr)      free(ptr)
+#endif
+
+#ifndef ESGUI_REALLOC
+#define ESGUI_REALLOC(ptr, size)  realloc((ptr), (size))
 #endif
 
 

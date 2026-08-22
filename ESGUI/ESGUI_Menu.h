@@ -52,6 +52,7 @@ typedef struct {
     ESGUI_MenuAction_T (*on_input)(ESGUI_MenuPage_T *page, ESGUI_EventCode_t e); // 默认框架处理焦点，特殊情况覆盖
     void (*on_focus_change)(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx); // 焦点变化通知（播放音效、启动动画）
     void (*on_page_chenge)(ESGUI_MenuPage_T *page,ESGUI_MenuAction_T *action);//页面切换回调函数，页面切换时触发
+    void (*on_relayout)(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus);//条目结构变化后重排布局（运行时增删条目）
 } esgui_page_vtable_t;
 
 
@@ -78,6 +79,8 @@ typedef struct esgui_menu_page {
 
     ESGUI_MenuItem_T *items;    //页面条目数组指针
     eui_uint16_t item_num;          //条目数量,自动计算
+    eui_uint16_t item_cap;          //条目数组容量（运行时增删条目用，0=未启用"增加"）
+    eui_uint8_t  item_auto_expand;  //1=容量可自动增长/缩容（仅动态菜单置位，静态数组必须为0）
     eui_uint16_t focus_idx;         //焦点条目索引，即哪个条目被选中
 
     void *render_ctx;           // 系统渲染上下文（如 CanvasStripIter），由 ESGUI_Tick 注入，页面不用操作
@@ -95,6 +98,8 @@ typedef struct esgui_pop_window {
 
     ESGUI_MenuItem_T *items;    //页面条目数组指针
     eui_uint16_t item_num;          //条目数量,自动计算
+    eui_uint16_t item_cap;          //条目数组容量（运行时增删条目用，0=未启用"增加"）
+    eui_uint8_t  item_auto_expand;  //1=容量可自动增长/缩容（仅动态菜单置位，静态数组必须为0）
     eui_uint16_t focus_idx;         //焦点条目索引，即哪个条目被选中
 
     void *render_ctx;           // 系统渲染上下文，由 ESGUI_Tick 注入
@@ -142,5 +147,24 @@ void ESGUI_MenuCtrlHandleAction(ESGUI_MenuCtrl_T *emc, ESGUI_MenuAction_T *act);
 
 bool ESGUI_MenuCtrlPreparePopPage(ESGUI_MenuCtrl_T *emc);
 void ESGUI_MenuCtrlExecPendingPop(ESGUI_MenuCtrl_T *emc);
+
+/* ==================== 运行时条目增删 ====================
+ * 由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ * 前提：
+ *   - page->items 必须指向"容量足够"的可写数组（不要用 const 数组）；
+ *   - 增加/插入前先设置 page->item_cap = 数组容量（删除不依赖容量）；
+ *   - 动态菜单（ESGUI_DynamicTextMenuCreate）置 item_auto_expand=1：
+ *     容量不足时自动 realloc 翻倍扩容；删除后容量 > 2×条目数时自动缩容，
+ *     实现真正的"按需增删"（静态数组必须保持 item_auto_expand=0）；
+ *   - 须在 UI 线程（on_enter 回调 / UI 任务定时器）中调用；
+ *   - 页面尚未首次渲染（draw_data 为空）时调用同样安全，布局会在
+ *     on_create 时按最终条目列表计算。
+ * 行为：操作成功后自动重排布局并重定位焦点（文本菜单无需重排）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+bool ESGUI_MenuPageAddItem(ESGUI_MenuPage_T *page, const ESGUI_MenuItem_T *item);      // 末尾追加
+bool ESGUI_MenuPageInsertItem(ESGUI_MenuPage_T *page, eui_uint16_t idx, const ESGUI_MenuItem_T *item); // 指定位置插入（idx 可等于 item_num）
+bool ESGUI_MenuPageRemoveItem(ESGUI_MenuPage_T *page, eui_uint16_t idx);              // 删除指定条目（至少保留 1 条）
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
 
 #endif //ESGUI_ESGUI_MENU_H

@@ -2,6 +2,21 @@
 
 ## 📋 更新日志
 
+### V2.2.0 (2026-8-22)
+- ### ↓↓↓ 新增 ↓↓↓
+  - ### 菜单/列表弹窗运行时增删条目：
+    - `ESGUI_MenuPageAddItem` / `ESGUI_MenuPageInsertItem` / `ESGUI_MenuPageRemoveItem`：操作静态条目数组（需设置 `item_cap`，自动重排布局并修正焦点）
+    - 动态文本菜单 `ESGUI_DynamicTextMenuCreate`：条目数组内部 malloc，销毁自动 free，`item_auto_expand` 容量自适应（增加不足自动 realloc 翻倍，删除超 2 倍自动缩容，实现真正的按需增删）
+    - `ESGUI_MENU_RUNTIME_ITEMS` 总开关：0=整套机制剔除（API 与 on_relayout 重排回调一并裁剪）
+  - ### 增删条目的异步版本（与 Async 家族一致）：
+    - `ESGUI_MenuPageAddItemAsync` / `ESGUI_MenuPageInsertItemAsync` / `ESGUI_MenuPageRemoveItemAsync`：从任意任务/中断投递，UI 线程 Tick 内执行；多任务并发用 ProducerBox 消息盒投递同结构命令
+  - ### 多线程方式独立开关：
+    - `ESGUI_ENABLE_CMD_QUEUE`：主命令队列方式（Async 入主队列），0=Async 退化为同步直调
+    - `ESGUI_ENABLE_PRODUCER_BOX`：生产者消息盒方式，0=消息盒类型/函数整体剔除
+  - ### 动态内存接口宏：
+    - `ESGUI_MALLOC` / `ESGUI_FREE` / `ESGUI_REALLOC`：可自定义内存分配器（如 ESP-IDF `heap_caps_*` 指定 PSRAM、自定义内存池），默认标准库
+  - README 补充：菜单动态增删用法、异步增删与各功能 ProducerBox 投递示例
+
 ### v1.0.0
 - 首次提交
 
@@ -90,9 +105,9 @@ ESGUI（Embedded Simple GUI）是一个面向单色 OLED（如 SSD1315/SSD1306�
 | 特性 | 说明 |
 |------|------|
 | **零浮点** | 所有动画与进度使用千分比（0~1000），无 `float`/`double`，无 FPU 也能流畅运行 |
-| **零动态内存** | 页面数据、弹窗数据、动画节点全部使用静态内存池，无 `malloc`/`free` |
+| **默认零动态内存** | 页面/弹窗/动画数据默认全部使用静态内存池；动态菜单（可选，`ESGUI_ENABLE_DYNAMIC_TEXT_MENU`）才使用 malloc，且分配器可用 `ESGUI_MALLOC` 宏自定义 |
 | **零 RTOS 依赖** | 线程安全靠自研无锁命令队列实现，不依赖任何操作系统/锁/汇编 |
-| **多线程支持** | Async 函数可从任意任务/中断调用；多任务场景用生产者收件箱"单生产者收拢" |
+| **多线程支持** | Async 函数可从任意任务/中断调用；多任务场景用生产者收件箱"单生产者收拢"；主队列与消息盒可独立开关裁剪 |
 | **页式显存映射** | 显存 Buffer 与 SSD1315 GDDRAM 1:1 页式映射，送屏无需转置 |
 | **分块刷新** | 支持按条带（Strip）分块刷新，几 KB RAM 即可驱动大屏 |
 | **动画系统** | 内置线性/缓入/缓出/回弹/冲过/弹跳等曲线，支持热更新目标值与 must_complete 阻塞 |
@@ -193,10 +208,20 @@ ESGUI_Git/
 | 宏 | 默认值 | 说明 |
 |---|-----|---|
 | `ESGUI_ENABLE_MULTITHREAD` | 1 | 1=Async 走无锁队列（多线程）；0=退化为直接同步调用（单线程，零队列开销） |
+| `ESGUI_ENABLE_CMD_QUEUE` | 1 | 【V2.2.0】主命令队列方式开关：1=Async 入主队列；0=Async 退化为同步直调，主队列类型/处理代码剔除 |
+| `ESGUI_ENABLE_PRODUCER_BOX` | 1 | 【V2.2.0】生产者消息盒方式开关：0=ProducerBox 类型/函数整体剔除 |
 | `ESGUI_CMD_QUEUE_SIZE` | 32 | 主命令队列大小（须 2 的幂） |
 | `ESGUI_SYNC_MODE` | 0 | 0=编译器原子（GCC/Clang，多核安全）；1=纯软件 volatile（任何编译器，单核） |
 | `ESGUI_MAX_PRODUCER` | 4 | 生产者收件箱最大数量（多生产者收拢） |
 | `ESGUI_PRODUCER_BOX_CAP` | 8 | 单个收件箱容量（须 2 的幂） |
+
+### 运行时条目增删 / 动态菜单 / 内存
+
+| 宏 | 默认值 | 说明 |
+|---|-----|---|
+| `ESGUI_ENABLE_MENU_RUNTIME_ITEMS` | 1 | 【V2.2.0】运行时增删条目总开关：1=Add/Insert/Remove 三个 API + 各页面 on_relayout 重排；0=整套剔除 |
+| `ESGUI_ENABLE_DYNAMIC_TEXT_MENU` | 1 | 【V2.2.0】动态文本菜单（`ESGUI_DynamicTextMenuCreate`）：条目数组 malloc、销毁自动 free、容量自适应；依赖 `ESGUI_ENABLE_TEXT_MENU=1` |
+| `ESGUI_MALLOC` / `ESGUI_FREE` / `ESGUI_REALLOC` | 标准库 | 【V2.2.0】动态内存分配接口宏，可覆盖为自定义分配器（如 `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`） |
 
 ### 页面 / 弹窗裁剪
 
@@ -361,6 +386,11 @@ ESGUI_ClosePopupAsync(&ui);                                    // 关弹窗
 ESGUI_HandleActionAsync(&ui, (ESGUI_MenuAction_T){ACT_REFRESH, NULL});
 ESGUI_OverlayAddAsync(&ui, &overlay);                          // 覆盖层
 ESGUI_AnimStartAsync(&ui, &anim_cfg);                          // 动画
+
+/* 【V2.2.0】运行时条目增删（等效同步版，UI 线程执行） */
+ESGUI_MenuPageAddItemAsync(&ui, &page, &new_item);             // 末尾追加
+ESGUI_MenuPageInsertItemAsync(&ui, &page, 2, &new_item);       // 指定位置插入
+ESGUI_MenuPageRemoveItemAsync(&ui, &page, 3);                  // 删除指定条目
 ```
 
 UI 线程只需照常调用 `ESGUI_Tick`，命令在 Tick 内统一出队处理。
@@ -396,6 +426,68 @@ void net_task(void *arg) {
 
 UI 线程侧无需任何额外代码，`ESGUI_Tick` 会自动"先清主队列、再轮询所有已注册收件箱"，命令与主队列走同一处理逻辑。
 
+#### 各功能的 ProducerBox 投递示例（V2.2.0 补充）
+
+以下命令与对应 Async 函数**完全等效**（前提：收件箱已 `ESGUI_ProducerBoxInit` + `ESGUI_ProducerBoxRegister`）：
+
+```c
+/* 1. 按键（便捷函数） */
+ESGUI_ProducerBoxPushKey(box, EVT_KEY_OK, tick_ms);
+
+/* 2. 压栈 / 出栈（动作命令，与 PushPageAsync/PopPageAsync 等效） */
+ESGUI_ProducerBoxPushAction(box, (ESGUI_MenuAction_T){ACT_PUSH_PAGE, &sub_page});
+ESGUI_ProducerBoxPushAction(box, (ESGUI_MenuAction_T){ACT_POP_PAGE, NULL});
+
+/* 3. 弹窗 显示 / 关闭 */
+ESGUI_ProducerBoxPushAction(box, (ESGUI_MenuAction_T){ACT_SHOW_POPUP, &popup});
+ESGUI_ProducerBoxPushAction(box, (ESGUI_MenuAction_T){ACT_CLOSE_POPUP, NULL});
+
+/* 4. 覆盖层 添加 / 移除 / 可见性（通用 Push 构造命令） */
+ESGUI_Cmd_T cmd;
+cmd.type = ESGUI_CMD_OVERLAY_ADD;
+cmd.u.overlay.ov = &overlay;
+ESGUI_ProducerBoxPush(box, &cmd);
+
+cmd.type = ESGUI_CMD_OVERLAY_REMOVE;
+cmd.u.overlay.ov = &overlay;
+ESGUI_ProducerBoxPush(box, &cmd);
+
+cmd.type = ESGUI_CMD_OVERLAY_VISIBLE;
+cmd.u.overlay_vis.ov = &overlay;
+cmd.u.overlay_vis.visible = false;
+ESGUI_ProducerBoxPush(box, &cmd);
+
+/* 5. 任意动作（刷新 / 退出应用等） */
+ESGUI_ProducerBoxPushAction(box, (ESGUI_MenuAction_T){ACT_REFRESH, NULL});
+
+/* 6. 动画 启动 / 停止（anim_t 配置须保持有效直到 UI 线程处理） */
+cmd.type = ESGUI_CMD_ANIM_START;
+cmd.u.anim_start.a = &anim_cfg;
+ESGUI_ProducerBoxPush(box, &cmd);
+
+cmd.type = ESGUI_CMD_ANIM_STOP_ALL;
+cmd.u.anim_stop_all.var = &my_var;
+ESGUI_ProducerBoxPush(box, &cmd);
+
+/* 7. 运行时条目增删（条目值拷贝，label/icon 等指针须保持有效） */
+cmd.type = ESGUI_CMD_MENU_ITEM;
+cmd.u.menu_item.page = &page;
+cmd.u.menu_item.op   = ESGUI_MENU_ITEM_OP_ADD;
+cmd.u.menu_item.item = (ESGUI_MenuItem_T){0,0,"动态条目",NULL,on_enter,NULL};
+ESGUI_ProducerBoxPush(box, &cmd);
+
+cmd.u.menu_item.op   = ESGUI_MENU_ITEM_OP_INSERT;
+cmd.u.menu_item.idx  = 2;   /* 在索引 2 处插入 */
+cmd.u.menu_item.item = (ESGUI_MenuItem_T){0,0,"插入条目",NULL,on_enter,NULL};
+ESGUI_ProducerBoxPush(box, &cmd);
+
+cmd.u.menu_item.op   = ESGUI_MENU_ITEM_OP_REMOVE;
+cmd.u.menu_item.idx  = 3;   /* 删除索引 3 */
+ESGUI_ProducerBoxPush(box, &cmd);
+```
+
+> 说明：`PushKey` / `PushAction` 为便捷函数，其余功能统一用 `ESGUI_ProducerBoxPush(box, &cmd)` 构造命令；cmd 结构可复用（每次 Push 前改字段即可）。所有约束与对应 Async 版一致。
+
 ### ⚠️ 限制条件（重要）
 
 1. **单消费者**：`ESGUI_Tick` 只能由**唯一**的 UI 线程调用；所有绘制、动画、页面/弹窗操作都在其中完成。
@@ -406,6 +498,63 @@ UI 线程侧无需任何额外代码，`ESGUI_Tick` 会自动"先清主队列、
 6. **初始化时序**：`ESGUI_Init`、`ESGUI_BindCanvas`、`ESGUI_ProducerBoxRegister` 等共享状态写入必须在任务启动前、单线程的 init 阶段完成。
 7. **队列满丢弃**：主队列/收件箱满时新命令被直接丢弃（不阻塞调用方），高频投递场景请调大容量（须 2 的幂）。
 8. **关闭多线程**：`ESGUI_ENABLE_MULTITHREAD=0` 时 Async 函数直接同步执行，只能在单线程主循环内调用。
+
+---
+
+## 📝 菜单运行时增删条目（V2.2.0）
+
+支持文本菜单、BMP 菜单、3D 菜单以及文本列表/BMP 列表弹窗（普通+滚动标题版），两种方式：
+
+### 方式一：静态条目数组（`ESGUI_ENABLE_MENU_RUNTIME_ITEMS`）
+
+条目数组由你声明（**可写、留足容量**），通过三个 API 增删，框架自动重排布局并修正焦点：
+
+```c
+ESGUI_MenuPage_T page;
+ESGUI_MenuItem_T my_items[16];        /* 可写数组，容量 16 */
+
+/* 创建后声明容量（增加/插入前必须设置；删除不依赖容量） */
+ESGUI_DefaltTextMenuCreate(&page, my_items, "List", 3);
+page.item_cap = 16;
+
+/* 运行时增删（须在 UI 线程调用：on_enter 回调 / UI 任务定时器） */
+ESGUI_MenuItem_T it = {0,0,"New Item",ESGUI_NULL,on_enter,ESGUI_NULL};
+ESGUI_MenuPageAddItem(&page, &it);                        // 末尾追加
+ESGUI_MenuPageInsertItem(&page, 1, &it);                  // 索引 1 处插入
+ESGUI_MenuPageRemoveItem(&page, 2);                       // 删除索引 2（至少保留 1 条）
+```
+
+- 操作成功后自动调用 vtable 的 `on_relayout` 重排（文本菜单无需重排，BMP/3D 菜单重算布局、BMP 菜单同时重扫 GIF 标志），并返回 `ACT_REFRESH` 触发重绘；
+- 从 `on_enter` 调用时直接返回 `(ESGUI_MenuAction_T){ACT_REFRESH, NULL}` 即可。
+
+### 方式二：动态文本菜单（`ESGUI_ENABLE_DYNAMIC_TEXT_MENU`）
+
+条目数组由框架内部 `malloc`，销毁自动 `free`，且**容量自适应**——加满自动翻倍扩容、删后超 2 倍自动缩容，无需预设上限：
+
+```c
+ESGUI_MenuPage_T dyn_page;
+
+/* 创建（初始容量 12；内存分配器可用 ESGUI_MALLOC 宏自定义） */
+if (!ESGUI_DynamicTextMenuCreate(&dyn_page, "动态列表", 12)) return;
+
+/* 创建后仅 1 个占位条目（框架要求至少 1 条），改写它或直接增删 */
+dyn_page.items[0].label = "第一项";
+
+/* 增删与方式一同源（自动扩容/缩容） */
+ESGUI_MenuPageAddItem(&dyn_page, &it);
+ESGUI_MenuPageRemoveItem(&dyn_page, 1);
+```
+
+- 页面 Pop 销毁后条目数组已 `free`，再次 Push 前必须重新 `Create`；
+- 需要跨任务调用时用异步版本：`ESGUI_MenuPageAddItemAsync(ui, page, &it)` 等（见多线程章节）。
+
+### 注意事项
+
+1. 条目数组必须**可写**且容量足够（静态方式勿用 const 数组）；
+2. 静态方式增/插前必须设置 `page.item_cap`；动态方式由创建函数自动设置；
+3. 所有增删 API 须在 **UI 线程**（on_enter / UI 任务）调用，跨任务用 Async 或 ProducerBox；
+4. 删除至少保留 1 条（避免空菜单导致绘制越界，返回 false）；
+5. 文本条目的 `label` 不能为 NULL（与既有绘制逻辑一致），且需保持有效（静态字符串/持久缓冲区）。
 
 ---
 

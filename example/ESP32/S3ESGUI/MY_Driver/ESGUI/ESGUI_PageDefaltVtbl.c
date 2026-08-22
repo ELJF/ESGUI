@@ -1,6 +1,7 @@
 //
 // Created by E_LJF on 2026/6/6.
-// Flash-optimized for MCU: no <complex.h>, no <stdio.h>, no <stdlib.h>, no sprintf, no float
+// Flash-optimized for MCU: no <complex.h>, no <stdio.h>, no sprintf, no float
+// (<stdlib.h> 仅在 ESGUI_ENABLE_DYNAMIC_TEXT_MENU=1 时引入，供动态菜单 malloc/free)
 //
 
 /**
@@ -16,7 +17,8 @@
  *
  * 所有实现均遵循以下设计原则：
  *   1. 零浮点运算：百分比使用千分比（permille，0~1000）
- *   2. 零动态内存：页面/弹窗数据使用静态内存池
+ *   2. 默认零动态内存：页面/弹窗数据使用静态内存池；动态菜单
+ *      （ESGUI_ENABLE_DYNAMIC_TEXT_MENU）为可裁剪的可选功能，内部才使用 malloc
  *   3. 模块化裁剪：通过 ESGUI_Config.h 的宏开关剔除不需要的功能
  *   4. 动画驱动：所有视觉变化（位置/尺寸/透明度）均通过 anim_start 驱动
  *   5. 页面切换过渡：Push/Pop 时启动百叶窗遮罩动画，must_complete 阻塞真正销毁
@@ -25,6 +27,9 @@
 #include "ESGUI_PageDefaltVtbl.h"
 
 #include <string.h>
+#if ESGUI_ENABLE_DYNAMIC_TEXT_MENU
+#include <stdlib.h>   /* 动态文本菜单：malloc / free */
+#endif
 #include "ESGUI_BSP_Canvas.h"
 #include "ESGUI_BSP_draw.h"
 #include "ESGUI_BSP_Text.h"
@@ -731,11 +736,15 @@ void esgui_text_menu_defalt_on_destroy(ESGUI_MenuPage_T *page)
  *        4. 启动进度条、焦点框、列表滚动动画
  *        5. 若 old_idx == new_idx（Pop 恢复），启动百叶窗淡入
  */
-void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx)
+/**
+ * @brief 文本菜单焦点重定位（无过渡动画）
+ * @param page 页面指针
+ * @note  重算焦点条目的纯文本宽度/特殊标记宽度、焦点框与列表滚动位置
+ *        并启动对应动画。由 on_focus_change 与 on_relayout（运行时增删条目）共用。
+ */
+static void esgui_text_menu_recenter(ESGUI_MenuPage_T *page)
 {
-    (void)old_idx;
-    (void)new_idx;
-    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_DEFALT_TEXT_PAGE_DATA_T *pd = page->draw_data;
     const esgui_page_vtable_t *vtbl = page->vtbl;
@@ -792,12 +801,46 @@ void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t
 
     eui_uint16_t permille = calc_progress_permille(focus_idx, item_num);
     start_progress_bar_anim(page, permille, 300);
+}
+
+/**
+ * @brief 文本菜单焦点变化回调
+ * @param page     页面指针
+ * @param old_idx  原焦点索引
+ * @param new_idx  新焦点索引
+ * @note  核心逻辑见 esgui_text_menu_recenter；
+ *        若 old_idx == new_idx（Pop 恢复），额外启动百叶窗淡入。
+ */
+void esgui_text_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx)
+{
+    (void)old_idx;
+    (void)new_idx;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    esgui_text_menu_recenter(page);
 
     /* Pop 恢复后（old == new 来自 ExecPendingPop）启动百叶窗淡入 */
     if (old_idx == new_idx) {
         start_page_transition_anim(page);
     }
 }
+
+/**
+ * @brief 文本菜单条目结构变化回调（运行时增删条目）
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ * @note  文本菜单布局在 on_draw 中动态计算，无需重排；
+ *        仅需重定位焦点框/滚动位置（不触发页面过渡动画）。
+ *        由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+static void esgui_text_menu_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    (void)old_focus;
+    (void)new_focus;
+    esgui_text_menu_recenter(page);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
 
 /**
  * @brief 文本菜单默认输入处理
@@ -1007,6 +1050,9 @@ static const esgui_page_vtable_t s_default_text_vtable = {
     .special_item_draw        = esgui_text_menu_defalt_special_item_draw,
     .get_special_item_draw_w  = esgui_text_menu_defalt_get_special_item_draw_w,
     .on_page_chenge           = esgui_text_menu_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_text_menu_relayout,
+#endif
 };
 
 /**
@@ -1029,6 +1075,83 @@ void ESGUI_DefaltTextMenuCreate(ESGUI_MenuPage_T *page,
     page->title     = title;
     page->item_num  = (eui_uint16_t)item_num;
 }
+
+
+/* ---------- 4.11 动态文本菜单（可裁剪） ----------
+ * 与静态版共用同一套 vtable（on_create/on_draw/on_input/on_focus_change/
+ * on_page_chenge/on_relayout 全部复用），仅：
+ *   - 创建函数内部 malloc 条目数组（容量 cap），调用者无需准备数组；
+ *   - on_destroy 先走静态销毁（停动画、释放 draw_data），再 free 条目数组。
+ * 动态菜单的实用价值在于运行时增删，建议同时开启
+ * ESGUI_ENABLE_MENU_RUNTIME_ITEMS（未开启时只能显示初始占位条目）。
+ */
+#if ESGUI_ENABLE_DYNAMIC_TEXT_MENU
+
+/**
+ * @brief 动态文本菜单销毁回调
+ * @param page 页面指针
+ * @note  先调用静态销毁（内部会访问 items[0] 停动画），再释放条目数组。
+ */
+static void esgui_dynamic_text_menu_on_destroy(ESGUI_MenuPage_T *page)
+{
+    if (page == ESGUI_NULL) return;
+    esgui_text_menu_defalt_on_destroy(page);
+    if (page->items != ESGUI_NULL) {
+        ESGUI_FREE(page->items);
+        page->items = ESGUI_NULL;
+    }
+    page->item_num = 0;
+    page->item_cap = 0;
+}
+
+/**
+ * @brief 动态文本菜单虚函数表（仅 on_destroy 与静态版不同）
+ */
+static const esgui_page_vtable_t s_dynamic_text_vtable = {
+    .on_create                = esgui_text_menu_defalt_on_create,
+    .on_destroy               = esgui_dynamic_text_menu_on_destroy,
+    .on_draw                  = esgui_text_menu_defalt_on_draw,
+    .on_focus_change          = esgui_text_menu_defalt_on_focus_change,
+    .on_input                 = esgui_menu_defalt_on_input,
+    .special_item_draw        = esgui_text_menu_defalt_special_item_draw,
+    .get_special_item_draw_w  = esgui_text_menu_defalt_get_special_item_draw_w,
+    .on_page_chenge           = esgui_text_menu_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_text_menu_relayout,
+#endif
+};
+
+/**
+ * @brief 创建动态文本菜单页面（条目数组内部 malloc，销毁时自动 free）
+ * @param page  页面结构体指针（由调用者分配，可为静态实例）
+ * @param title 页面标题（可为 ESGUI_NULL 或空字符串）
+ * @param cap   条目数组初始容量（须 ≥ 1；框架各环节要求至少 1 条占位条目；
+ *              容量不足时增删 API 会自动 realloc 翻倍扩容，无需预留上限）
+ * @return true=创建成功；false=参数非法或 malloc 失败
+ * @note  创建后 item_num=1（占位条目，label=""），item_auto_expand=1（容量自适应），
+ *        可随后用 ESGUI_MenuPageAddItem / InsertItem / RemoveItem 动态填充
+ *        （需 ESGUI_ENABLE_MENU_RUNTIME_ITEMS）。
+ *        页面 Pop 销毁后条目数组已 free，再次 Push 前必须重新 Create。
+ */
+bool ESGUI_DynamicTextMenuCreate(ESGUI_MenuPage_T *page, const char *title, eui_uint16_t cap)
+{
+    if (page == ESGUI_NULL || cap == 0) return false;
+    ESGUI_MenuItem_T *items = (ESGUI_MenuItem_T *)ESGUI_MALLOC((size_t)cap * sizeof(ESGUI_MenuItem_T));
+    if (items == ESGUI_NULL) return false;
+    memset(items, 0, (size_t)cap * sizeof(ESGUI_MenuItem_T));
+    memset(page, 0, sizeof(ESGUI_MenuPage_T));
+    page->vtbl      = &s_dynamic_text_vtable;
+    page->title     = (title == ESGUI_NULL) ? "" : title;
+    page->items     = items;
+    page->item_num  = 1;                 /* 占位条目（on_create 会读取 items[0].label，不能为 NULL） */
+    page->item_cap  = cap;
+    page->item_auto_expand = 1;          /* 容量自适应：Add/Insert 不足时 realloc 翻倍，Remove 超 2 倍缩容 */
+    page->items[0].label = "";
+    return true;
+}
+
+#endif /* ESGUI_ENABLE_DYNAMIC_TEXT_MENU */
+
 #endif /* ESGUI_ENABLE_TEXT_MENU */
 
 
@@ -1112,28 +1235,15 @@ static const Bitmap *bmp_item_bitmap(ESGUI_MenuPage_T *page, eui_uint16_t idx,
 }
 
 /**
- * @brief BMP 菜单页面创建回调
+ * @brief 重算 BMP 菜单图片布局（GIF 扫描 + 垂直居中 + 水平排列）
  * @param page 页面指针
- * @note  计算图片布局：
- *        - 顶部进度条高度 + 边距
- *        - 图片垂直居中于进度条和标签之间的区域
- *        - 标签位于屏幕底部
- *        - 所有图片水平排列，items[i].x 存储相对坐标
+ * @param dat  菜单数据（含 gif_is 标志缓存）
+ * @note  由 on_create 与 on_relayout（运行时增删条目）共用；
+ *        仅依赖 dat->font_height / progress_bar_h / label_y。
  */
-void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
-    if (page == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
-    ESGUI_DEFAULT_BMP_MENU_DAT *dat = bmp_page_data_alloc();
-    if (dat == ESGUI_NULL) return;
-    page->draw_data = dat;
-    CanvasStripIter *c_it = page->render_ctx;
-    eui_uint16_t canvas_w = canvas_get_width(c_it);
-    eui_uint16_t canvas_h = canvas_get_height(c_it);
-    dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
-    dat->progress_bar_h = ESGUI_PROGRESS_BAR_W;
-    if (dat->progress_bar_h < 2) dat->progress_bar_h = 3;
-    eui_uint16_t top_margin = dat->progress_bar_h + 4;
-    dat->label_y = canvas_h - dat->font_height - 2;
-    dat->label_anim_y = dat->label_y;
+static void esgui_bmp_menu_recompute_layout(ESGUI_MenuPage_T *page, ESGUI_DEFAULT_BMP_MENU_DAT *dat)
+{
+    if (page == ESGUI_NULL || dat == ESGUI_NULL) return;
 #if ESGUI_ENABLE_GIF
     /* 先扫描 GIF 条目（名称末尾带 "\x03/7" 标记，类型字符 '7'）：
      * 仅记录"是/否 GIF"，帧数组与帧间隔由条目 icon 指向的 ESGUI_GIF_T
@@ -1151,6 +1261,7 @@ void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
         const Bitmap *bmp = bmp_item_bitmap(page, i, dat);
         if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
     }
+    eui_uint16_t top_margin = dat->progress_bar_h + 4;
     eui_uint16_t separator_y = dat->label_y - 2;
     eui_uint16_t mid_h = (separator_y > top_margin) ? (separator_y - top_margin) : 0;
     dat->bmp_y = top_margin + (mid_h > max_bmp_h ? (mid_h - max_bmp_h) / 2 : 0);
@@ -1169,6 +1280,27 @@ void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
             page->items[i].x = rel_x;
         }
     }
+}
+
+/**
+ * @brief BMP 菜单页面创建回调
+ * @param page 页面指针
+ * @note  计算图片布局（详见 esgui_bmp_menu_recompute_layout）并初始化动画状态。
+ *        此函数在页面首次被渲染前由 ESGUI_Tick 调用。
+ */
+void esgui_bmp_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
+    if (page == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    ESGUI_DEFAULT_BMP_MENU_DAT *dat = bmp_page_data_alloc();
+    if (dat == ESGUI_NULL) return;
+    page->draw_data = dat;
+    CanvasStripIter *c_it = page->render_ctx;
+    eui_uint16_t canvas_h = canvas_get_height(c_it);
+    dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
+    dat->progress_bar_h = ESGUI_PROGRESS_BAR_W;
+    if (dat->progress_bar_h < 2) dat->progress_bar_h = 3;
+    dat->label_y = canvas_h - dat->font_height - 2;
+    dat->label_anim_y = dat->label_y;
+    esgui_bmp_menu_recompute_layout(page, dat);
     dat->progress_bar_per = 0;
     dat->line_len = 0;
     dat->box_permille = 0;
@@ -1331,9 +1463,15 @@ ESGUI_MenuAction_T esgui_bmp_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_Event
  *        6. 启动标签从屏幕底部滑入动画
  *        7. 若 old_idx == new_idx（Pop 恢复），启动百叶窗淡入
  */
-void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
-    (void)old_idx;
-    (void)new_idx;
+/**
+ * @brief BMP 菜单焦点重定位（无过渡动画）
+ * @param page 页面指针
+ * @note  计算新焦点图片应在屏幕正中的位置并启动图片横向滚动、
+ *        进度条、焦点框生长、标签滑入动画。
+ *        由 on_focus_change 与 on_relayout（运行时增删条目）共用。
+ */
+static void esgui_bmp_menu_recenter(ESGUI_MenuPage_T *page)
+{
     if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
@@ -1392,12 +1530,49 @@ void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t 
     anim_label.duration  = 600;
     anim_label.path_type = ANIM_PATH_EASE_OUT;
     anim_start(&anim_label);
+}
+
+/**
+ * @brief BMP 菜单焦点变化回调
+ * @param page     页面指针
+ * @param old_idx  原焦点索引
+ * @param new_idx  新焦点索引
+ * @note  核心逻辑见 esgui_bmp_menu_recenter；
+ *        若 old_idx == new_idx（Pop 恢复），额外启动百叶窗淡入。
+ */
+void esgui_bmp_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
+    (void)old_idx;
+    (void)new_idx;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    esgui_bmp_menu_recenter(page);
 
     /* Pop 恢复后启动百叶窗淡入 */
     if (old_idx == new_idx) {
         start_bmp_page_transition_anim(page);
     }
 }
+
+/**
+ * @brief BMP 菜单条目结构变化回调（运行时增删条目）
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ * @note  停止横向滚动动画 → 重算图片布局（含 GIF 标志重新扫描）→
+ *        重新居中焦点（不触发页面过渡动画）。
+ *        由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+static void esgui_bmp_menu_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    (void)old_focus;
+    (void)new_focus;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    ESGUI_DEFAULT_BMP_MENU_DAT *dat = page->draw_data;
+    anim_stop_all(&page->items[0].x);       /* 停止进行中的横向滚动，避免与新布局冲突 */
+    esgui_bmp_menu_recompute_layout(page, dat);
+    esgui_bmp_menu_recenter(page);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
 
 /**
  * @brief BMP 菜单页面切换回调
@@ -1699,6 +1874,9 @@ static const esgui_page_vtable_t esgui_default_bmp_menu_vtable = {
     .on_input                 = esgui_bmp_defalt_on_input,
     .on_focus_change          = esgui_bmp_menu_defalt_on_focus_change,
     .on_page_chenge           = esgui_bmp_menu_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_bmp_menu_relayout,
+#endif
 };
 
 /**
@@ -1856,6 +2034,35 @@ static void start_three_d_focus_rot_anim(ESGUI_DEFAULT_3D_MENU_DAT *dat)
 
 /* ---------- 5.5.3 生命周期 ---------- */
 
+/**
+ * @brief 重算 3D 菜单条目布局（每项缩放系数 + 水平排列坐标）
+ * @param page 页面指针
+ * @param dat  菜单数据（含 item_scale_q8 缓存）
+ * @note  由 on_create 与 on_relayout（运行时增删条目）共用；
+ *        依赖 dat->model_y / slot_w / model_display_h / model_depth / focal。
+ */
+static void esgui_3d_menu_recompute_layout(ESGUI_MenuPage_T *page, ESGUI_DEFAULT_3D_MENU_DAT *dat)
+{
+    if (page == ESGUI_NULL || dat == ESGUI_NULL) return;
+    page->items[0].x = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        if (i >= ESGUI_3D_MENU_MAX_ITEMS) break;
+        const ESGUI_3D_T *model = (const ESGUI_3D_T *)page->items[i].icon;
+        eui_int32_t model_size = three_d_model_area_size(model);
+        eui_int32_t scale = 256;
+        if (model_size > 0 && dat->model_display_h > 0) {
+            scale = (eui_int32_t)(((int64_t)dat->model_display_h * 256 * dat->model_depth) /
+                                  ((int64_t)model_size * dat->focal));
+            if (scale <= 0) scale = 256;
+        }
+        dat->item_scale_q8[i] = scale;
+        page->items[i].y = dat->model_y;
+        if (i > 0) {
+            page->items[i].x = (int)i * (int)dat->slot_w;
+        }
+    }
+}
+
 void esgui_3d_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
     if (page == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_3D_MENU_DAT *dat = three_d_page_data_alloc();
@@ -1886,23 +2093,7 @@ void esgui_3d_menu_defalt_on_create(ESGUI_MenuPage_T *page) {
         ? (eui_uint16_t)((eui_uint32_t)dat->focus_box_h * ESGUI_3D_MENU_MODEL_SCALE / 100)
         : dat->focus_box_h;
     dat->slot_w = dat->model_display_h + ESGUI_3D_MENU_ITEM_GAP;
-    page->items[0].x = 0;
-    for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        if (i >= ESGUI_3D_MENU_MAX_ITEMS) break;
-        const ESGUI_3D_T *model = (const ESGUI_3D_T *)page->items[i].icon;
-        eui_int32_t model_size = three_d_model_area_size(model);
-        eui_int32_t scale = 256;
-        if (model_size > 0 && dat->model_display_h > 0) {
-            scale = (eui_int32_t)(((int64_t)dat->model_display_h * 256 * dat->model_depth) /
-                                  ((int64_t)model_size * dat->focal));
-            if (scale <= 0) scale = 256;
-        }
-        dat->item_scale_q8[i] = scale;
-        page->items[i].y = dat->model_y;
-        if (i > 0) {
-            page->items[i].x = (int)i * (int)dat->slot_w;
-        }
-    }
+    esgui_3d_menu_recompute_layout(page, dat);
     dat->progress_bar_per = 0;
     dat->line_len = 0;
     dat->box_permille = 0;
@@ -1971,9 +2162,15 @@ ESGUI_MenuAction_T esgui_3d_menu_defalt_on_input(ESGUI_MenuPage_T *page, ESGUI_E
     return (ESGUI_MenuAction_T){ACT_NONE, ESGUI_NULL};
 }
 
-void esgui_3d_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
-    (void)old_idx;
-    (void)new_idx;
+/**
+ * @brief 3D 菜单焦点重定位（无过渡动画）
+ * @param page 页面指针
+ * @note  计算焦点模型应在屏幕正中的位置并启动横向滚动、进度条、
+ *        焦点框生长、标签滑入动画；焦点模型绕 Z 轴持续旋转。
+ *        由 on_focus_change 与 on_relayout（运行时增删条目）共用。
+ */
+static void esgui_3d_menu_recenter(ESGUI_MenuPage_T *page)
+{
     if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
     CanvasStripIter *c_it = page->render_ctx;
@@ -2032,11 +2229,40 @@ void esgui_3d_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t o
 
     /* 焦点模型绕 Z 轴持续旋转 */
     start_three_d_focus_rot_anim(dat);
+}
+
+void esgui_3d_menu_defalt_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
+    (void)old_idx;
+    (void)new_idx;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    esgui_3d_menu_recenter(page);
 
     if (old_idx == new_idx) {
         start_three_d_page_transition_anim(page);
     }
 }
+
+/**
+ * @brief 3D 菜单条目结构变化回调（运行时增删条目）
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ * @note  停止横向滚动动画 → 重算条目布局（缩放/坐标）→ 重新居中焦点
+ *        （不触发页面过渡动画）。
+ *        由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+static void esgui_3d_menu_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    (void)old_focus;
+    (void)new_focus;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    ESGUI_DEFAULT_3D_MENU_DAT *dat = page->draw_data;
+    anim_stop_all(&page->items[0].x);
+    esgui_3d_menu_recompute_layout(page, dat);
+    esgui_3d_menu_recenter(page);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
 
 void esgui_3d_menu_default_on_page_change(ESGUI_MenuPage_T *page, ESGUI_MenuAction_T *action) {
     if (page == ESGUI_NULL || action == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
@@ -2215,6 +2441,9 @@ static const esgui_page_vtable_t esgui_default_3d_menu_vtable = {
     .on_input                 = esgui_3d_menu_defalt_on_input,
     .on_focus_change          = esgui_3d_menu_defalt_on_focus_change,
     .on_page_chenge           = esgui_3d_menu_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_3d_menu_relayout,
+#endif
 };
 
 void ESGUI_Default3DMenuCreate(ESGUI_MenuPage_T *page, const char *title,
@@ -3506,6 +3735,23 @@ void esgui_default_text_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, e
 }
 
 /**
+ * @brief 文本列表弹窗条目结构变化回调（运行时增删条目）
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ * @note  布局在 on_draw 中动态计算，无需重排；
+ *        仅需重定位焦点框/滚动位置（on_focus_change 不区分 old/new，直接复用）。
+ *        由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+static void esgui_text_list_popwindow_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    esgui_default_text_list_popwindow_on_focus_change(page, old_focus, new_focus);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
+
+/**
  * @brief 文本列表弹窗页面切换回调
  * @param page   页面指针
  * @param action 动作指令
@@ -3616,6 +3862,9 @@ static const esgui_page_vtable_t text_list_popwindow_vtable = {
     .on_input = esgui_default_text_list_popwindow_on_input,
     .on_focus_change = esgui_default_text_list_popwindow_on_focus_change,
     .on_page_chenge = esgui_text_list_popwindow_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout = esgui_text_list_popwindow_relayout,
+#endif
 };
 
 /**
@@ -3791,6 +4040,9 @@ static const esgui_page_vtable_t text_list_scroll_title_popwindow_vtable = {
     .on_input = esgui_default_text_list_popwindow_on_input,
     .on_focus_change = esgui_default_text_list_popwindow_on_focus_change,
     .on_page_chenge = esgui_text_list_popwindow_default_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout = esgui_text_list_popwindow_relayout,
+#endif
 };
 
 /**
@@ -3833,12 +4085,107 @@ typedef struct {
     eui_uint16_t box_permille;      /**< 焦点框生长进度 */
     eui_uint16_t title_len;         /**< 标题文本宽度（滚动标题用） */
     eui_int16_t  title_scroll_x;    /**< 标题滚动当前 X 偏移（滚动标题用） */
+#if ESGUI_ENABLE_GIF
+    eui_uint8_t  gif_is[ESGUI_BMP_MENU_MAX_ITEMS]; /**< 各项是否为 GIF（0/1），on_create 预扫描 */
+    ESGUI_GIF_T  gif_play;      /**< 当前焦点 GIF 的播放槽（描述信息从描述符装载，播放状态独立） */
+    const ESGUI_GIF_T *gif_desc;/**< 播放槽当前绑定的 GIF 描述符（焦点切换时重装载） */
+    eui_uint16_t gif_pulse;     /**< 脉冲动画变量：焦点 GIF 播放期间保持弹窗持续刷新 */
+#endif
 } ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT;
+
+#if ESGUI_ENABLE_GIF
+/* 前向声明：on_draw 中绘制 GIF 条目时调用（定义在本节末尾 vtable 之前） */
+static eui_uint16_t esgui_bmp_list_popwindow_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx);
+#endif
+
+/**
+ * @brief 获取 BMP 列表弹窗条目实际显示的位图指针（普通项 → icon 本身；GIF 项 → 描述符第 0 帧）
+ * @param page 页面指针
+ * @param idx  条目索引
+ * @param dat  弹窗数据（含 gif_is 标志缓存），可为 NULL
+ * @return 位图指针；非法条目返回 NULL
+ * @note  GIF 条目的 icon 指向 ESGUI_GIF_T 描述符，布局/焦点框等需要"单帧尺寸"
+ *        的地方统一取第 0 帧。
+ */
+static const Bitmap *bmp_list_item_bitmap(ESGUI_MenuPage_T *page, eui_uint16_t idx,
+                                          const ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat) {
+    if (page == ESGUI_NULL || idx >= page->item_num) return ESGUI_NULL;
+    const void *icon = page->items[idx].icon;
+#if ESGUI_ENABLE_GIF
+    if (dat != ESGUI_NULL && idx < ESGUI_BMP_MENU_MAX_ITEMS && dat->gif_is[idx]) {
+        const ESGUI_GIF_T *g = (const ESGUI_GIF_T *)icon;
+        return (g != ESGUI_NULL && g->frames != ESGUI_NULL) ? &g->frames[0] : ESGUI_NULL;
+    }
+#endif /* ESGUI_ENABLE_GIF */
+    return (const Bitmap *)icon;
+}
 
 /**
  * @brief BMP 列表弹窗创建回调
  * @param page 页面指针
  * @note  计算弹窗内图片布局、标签位置，初始化焦点框尺寸。
+ */
+/**
+ * @brief 重算 BMP 列表弹窗布局（GIF 扫描 + 图片垂直居中 + 水平排列）
+ * @param page 页面指针
+ * @param dat  弹窗数据（含 gif_is 标志缓存）
+ * @note  由 on_create 与 on_relayout（运行时增删条目）共用；
+ *        仅依赖 dat->font_height / content_padding 与 window 尺寸。
+ */
+static void esgui_bmp_list_popwindow_recompute_layout(ESGUI_MenuPage_T *page, ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat)
+{
+    if (page == ESGUI_NULL || dat == ESGUI_NULL) return;
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+#if ESGUI_ENABLE_GIF
+    /* 先扫描 GIF 条目（名称末尾带 "\x03/7" 标记，类型字符 '7'）：
+     * 仅记录"是/否 GIF"，帧数组与帧间隔由条目 icon 指向的 ESGUI_GIF_T
+     * 描述符自行记录，弹窗无需重复记录任何播放参数。 */
+    for (eui_uint16_t i = 0; i < page->item_num && i < ESGUI_BMP_MENU_MAX_ITEMS; i++) {
+        char mch = '\0';
+        if (ESGUI_WidgetCheckMarker(page->items[i].label,
+                                    ESGUI_WIDGET_DEFAULT_MARK, ESGUI_NULL, &mch) && mch == '7') {
+            dat->gif_is[i] = 1;
+        }
+    }
+#endif /* ESGUI_ENABLE_GIF */
+    eui_uint16_t max_bmp_h = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = bmp_list_item_bitmap(page, i, dat);
+        if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
+    }
+    dat->label_y = window->window_h - dat->font_height - 5;
+    dat->label_anim_y = dat->label_y;
+    eui_uint16_t title_h = 0;
+    if (page->title && page->title[0]) {
+        title_h = dat->font_height + 4;
+    }
+    eui_uint16_t top_margin = title_h + 5;
+    eui_uint16_t bottom_margin = dat->font_height + 8;
+    eui_uint16_t mid_h = (window->window_h > top_margin + bottom_margin)
+                     ? (window->window_h - top_margin - bottom_margin) : 0;
+    dat->bmp_y = top_margin + (mid_h > max_bmp_h ? (mid_h - max_bmp_h) / 2 : 0);
+    page->items[0].x = 0;
+    eui_int16_t rel_x = 0;
+    for (eui_uint16_t i = 0; i < page->item_num; i++) {
+        const Bitmap *bmp = bmp_list_item_bitmap(page, i, dat);
+        if (bmp) {
+            page->items[i].y = dat->bmp_y + (max_bmp_h - bmp->h) / 2;
+        } else {
+            page->items[i].y = dat->bmp_y;
+        }
+        if (i > 0) {
+            const Bitmap *prev_bmp = bmp_list_item_bitmap(page, i - 1, dat);
+            if (prev_bmp) rel_x += prev_bmp->w + ESGUI_BMP_ITEM_GAP;
+            page->items[i].x = rel_x;
+        }
+    }
+}
+
+/**
+ * @brief BMP 列表弹窗创建回调
+ * @param page 页面指针
+ * @note  计算弹窗内图片布局（详见 esgui_bmp_list_popwindow_recompute_layout）、
+ *        初始化焦点框尺寸与弹窗水平居中位置。
  */
 void esgui_default_bmp_list_popwindow_on_create(ESGUI_MenuPage_T *page) {
     if (page == ESGUI_NULL) return;
@@ -3848,42 +4195,11 @@ void esgui_default_bmp_list_popwindow_on_create(ESGUI_MenuPage_T *page) {
     if (dat == ESGUI_NULL) return;
     dat->font_height = (eui_uint8_t)eui_get_text_height(&ESGUI_DEFAULT_FONT, "0");
     dat->content_padding = 5;
-    eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
-    eui_uint16_t title_h = 0;
-    if (page->title && page->title[0]) {
-        title_h = dat->font_height + 4;
-    }
-    eui_uint16_t max_bmp_h = 0;
-    for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
-        if (bmp && bmp->h > max_bmp_h) max_bmp_h = bmp->h;
-    }
-    dat->label_y = window->window_h - dat->font_height - 5;
-    dat->label_anim_y = dat->label_y;
-    eui_uint16_t top_margin = title_h + 5;
-    eui_uint16_t bottom_margin = dat->font_height + 8;
-    eui_uint16_t mid_h = (window->window_h > top_margin + bottom_margin)
-                     ? (window->window_h - top_margin - bottom_margin) : 0;
-    dat->bmp_y = top_margin + (mid_h > max_bmp_h ? (mid_h - max_bmp_h) / 2 : 0);
-    page->items[0].x = 0;
-    eui_int16_t rel_x = 0;
-    for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
-        if (bmp) {
-            page->items[i].y = dat->bmp_y + (max_bmp_h - bmp->h) / 2;
-        } else {
-            page->items[i].y = dat->bmp_y;
-        }
-        if (i > 0) {
-            const Bitmap *prev_bmp = page->items[i - 1].icon;
-            if (prev_bmp) rel_x += prev_bmp->w + ESGUI_BMP_ITEM_GAP;
-            page->items[i].x = rel_x;
-        }
-    }
+    esgui_bmp_list_popwindow_recompute_layout(page, dat);
     dat->box_permille = 0;
     dat->box_start_w  = 0;
     dat->box_start_h  = 0;
-    const Bitmap *first_bmp = page->items[0].icon;
+    const Bitmap *first_bmp = bmp_list_item_bitmap(page, 0, dat);
     dat->box_target_w = first_bmp ? first_bmp->w + 4 : 0;
     dat->box_target_h = first_bmp ? first_bmp->h + 4 : 0;
     window->window_x = (canvas_get_width(c_it) - window->window_w) / 2;
@@ -3900,6 +4216,9 @@ void esgui_default_bmp_list_popwindow_on_destroy(ESGUI_MenuPage_T *page) {
         anim_stop_all(&page->items[0].x);
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->label_anim_y);
+#if ESGUI_ENABLE_GIF
+        anim_stop_all(&dat->gif_pulse);   /* 停止 GIF 播放保持刷新的脉冲动画 */
+#endif
         popup_data_free();
         page->draw_data = ESGUI_NULL;
     }
@@ -3951,15 +4270,22 @@ ESGUI_MenuAction_T esgui_default_bmp_list_popwindow_on_input(ESGUI_MenuPage_T *p
  * @param new_idx  新焦点索引
  * @note  逻辑与 BMP 菜单焦点变化类似，但布局在弹窗内部。
  */
-void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
-    (void)old_idx; (void)new_idx;
+/**
+ * @brief BMP 列表弹窗焦点重定位（无过渡动画）
+ * @param page 页面指针
+ * @note  计算焦点图片应在弹窗内容区正中的位置并启动横向滚动、
+ *        焦点框生长、标签滑入动画。由 on_focus_change 与
+ *        on_relayout（运行时增删条目）共用。
+ */
+static void esgui_bmp_list_popwindow_recenter(ESGUI_MenuPage_T *page)
+{
     if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
     eui_uint16_t focus_idx = page->focus_idx;
     eui_uint16_t content_w = window->window_w - 2 * dat->content_padding;
     eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-    const Bitmap *focus_bmp = (const Bitmap *)page->items[focus_idx].icon;
+    const Bitmap *focus_bmp = bmp_list_item_bitmap(page, focus_idx, dat);
     eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
     eui_int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
     anim_t anim = {0};
@@ -3975,7 +4301,7 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eu
     eui_int32_t delta_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
     eui_uint16_t current_w = (eui_uint16_t)((eui_int32_t)dat->box_start_w + delta_w * dat->box_permille / 1000);
     eui_uint16_t current_h = (eui_uint16_t)((eui_int32_t)dat->box_start_h + delta_h * dat->box_permille / 1000);
-    const Bitmap *new_bmp = (const Bitmap *)page->items[focus_idx].icon;
+    const Bitmap *new_bmp = bmp_list_item_bitmap(page, focus_idx, dat);
     eui_uint16_t new_w = new_bmp ? new_bmp->w + 4 : 0;
     eui_uint16_t new_h = new_bmp ? new_bmp->h + 4 : 0;
     dat->box_start_w  = current_w;
@@ -4003,6 +4329,41 @@ void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eu
 }
 
 /**
+ * @brief BMP 列表弹窗焦点变化回调
+ * @param page     页面指针
+ * @param old_idx  原焦点索引
+ * @param new_idx  新焦点索引
+ * @note  核心逻辑见 esgui_bmp_list_popwindow_recenter。
+ */
+void esgui_default_bmp_list_popwindow_on_focus_change(ESGUI_MenuPage_T *page, eui_uint16_t old_idx, eui_uint16_t new_idx) {
+    (void)old_idx; (void)new_idx;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return;
+    esgui_bmp_list_popwindow_recenter(page);
+}
+
+/**
+ * @brief BMP 列表弹窗条目结构变化回调（运行时增删条目）
+ * @param page      页面指针
+ * @param old_focus 变化前的焦点索引
+ * @param new_focus 变化后的焦点索引
+ * @note  停止横向滚动动画 → 重算图片布局（含 GIF 标志重新扫描）→
+ *        重新居中焦点。
+ *        由 ESGUI_ENABLE_MENU_RUNTIME_ITEMS 控制（0=整套剔除）。
+ */
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+static void esgui_bmp_list_popwindow_relayout(ESGUI_MenuPage_T *page, eui_uint16_t old_focus, eui_uint16_t new_focus)
+{
+    (void)old_focus;
+    (void)new_focus;
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL) return;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    anim_stop_all(&page->items[0].x);
+    esgui_bmp_list_popwindow_recompute_layout(page, dat);
+    esgui_bmp_list_popwindow_recenter(page);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
+
+/**
  * @brief BMP 列表弹窗页面切换回调
  * @param page   页面指针
  * @param action 动作指令
@@ -4016,7 +4377,7 @@ void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESG
     if (action->act == ACT_SHOW_POPUP) {
         eui_uint16_t focus_idx = page->focus_idx;
         eui_int16_t focus_rel_x = bmp_item_rel_x(page, focus_idx);
-        const Bitmap *focus_bmp = page->items[focus_idx].icon;
+        const Bitmap *focus_bmp = bmp_list_item_bitmap(page, focus_idx, dat);
         eui_int16_t focus_w = focus_bmp ? focus_bmp->w : 0;
         eui_int16_t target_base = (content_w - focus_w) / 2 - focus_rel_x;
         eui_int16_t start_base = content_w;
@@ -4032,7 +4393,7 @@ void esgui_default_bmp_list_popwindow_on_page_change(ESGUI_MenuPage_T *page, ESG
         dat->box_permille = 0;
         dat->box_start_w  = 0;
         dat->box_start_h  = 0;
-        const Bitmap *new_bmp = page->items[focus_idx].icon;
+        const Bitmap *new_bmp = bmp_list_item_bitmap(page, focus_idx, dat);
         dat->box_target_w = new_bmp ? new_bmp->w + 4 : 0;
         dat->box_target_h = new_bmp ? new_bmp->h + 4 : 0;
         anim_t anim_box = {0};
@@ -4071,6 +4432,31 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+#if ESGUI_ENABLE_GIF
+    /* 焦点 GIF 播放期间保持弹窗持续刷新：
+     * 启动/维持一个无限脉冲动画（anim_running=1 → 框架每 Tick 重绘），
+     * 否则静态弹窗不会每帧重绘，GIF 无法动起来。焦点离开 GIF 时停止。 */
+    {
+        bool focus_gif = (page->focus_idx < ESGUI_BMP_MENU_MAX_ITEMS) &&
+                         (dat->gif_is[page->focus_idx] != 0);
+        if (focus_gif) {
+            if (!anim_is_running_var(&dat->gif_pulse)) {
+                anim_t pulse = {0};
+                pulse.var         = &dat->gif_pulse;
+                pulse.exec_cb     = anim_cb_uint16;
+                pulse.start       = 0;
+                pulse.end         = 0;
+                pulse.duration    = 100;
+                pulse.path_type   = ANIM_PATH_LINEAR;
+                pulse.repeat_cnt  = 0xFFFF;   /* 无限循环 */
+                pulse.repeat_total = 0xFFFF;
+                anim_start(&pulse);
+            }
+        } else {
+            anim_stop_all(&dat->gif_pulse);
+        }
+    }
+#endif /* ESGUI_ENABLE_GIF */
     Area a = {
         window->window_x, window->window_y,
         window->window_x + window->window_w,
@@ -4097,7 +4483,7 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
     canvas_clip_push(c_it->canvas, &bmp_clip);
     eui_int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
     for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
+        const Bitmap *bmp = bmp_list_item_bitmap(page, i, dat);
         if (!bmp) continue;
         eui_int16_t rel_x = bmp_item_rel_x(page, i);
         eui_int16_t x = base_x + rel_x;
@@ -4107,7 +4493,16 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
         eui_int16_t clip_left = (eui_int16_t)(window->window_x + dat->content_padding);
         eui_int16_t clip_right = (eui_int16_t)(window->window_x + window->window_w - dat->content_padding);
         if (x + w < clip_left || x > clip_right) continue;
-        eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+#if ESGUI_ENABLE_GIF
+        if (i < ESGUI_BMP_MENU_MAX_ITEMS && dat->gif_is[i]) {
+            /* GIF 条目：绘制交给 special_item_draw
+             *（选中→循环播放，未选中→第 0 帧） */
+            esgui_bmp_list_popwindow_special_item_draw(page, i);
+        } else
+#endif /* ESGUI_ENABLE_GIF */
+        {
+            eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+        }
         if (i == page->focus_idx) {
             eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
             eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
@@ -4134,6 +4529,77 @@ void esgui_default_bmp_list_popwindow_on_draw(ESGUI_MenuPage_T *page) {
     canvas_clip_pop(c_it->canvas);
 }
 
+#if ESGUI_ENABLE_GIF
+/* ---------- 6.5c BMP 列表弹窗 GIF 特殊条目绘制（名称末尾带 "\x03/7" 标记） ----------
+ * 与 BMP 菜单的 GIF 条目行为一致：条目 icon 指向 ESGUI_GIF_T 描述符，
+ * 选中→循环播放，未选中→显示第 0 帧并重置播放槽。
+ * 坐标含弹窗偏移（window_x/window_y/content_padding），与 on_draw 布局公式一致。 */
+
+/**
+ * @brief 获取 BMP 列表弹窗特殊条目（GIF）所占宽度
+ * @param page 页面指针
+ * @param indx 条目索引
+ * @return GIF 条目返回第 0 帧宽度（像素）；非 GIF 条目返回 0
+ */
+static eui_uint16_t esgui_bmp_list_popwindow_get_special_item_draw_w(ESGUI_MenuPage_T *page, eui_uint16_t indx)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || indx >= page->item_num) return 0;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    if (indx >= ESGUI_BMP_MENU_MAX_ITEMS || dat->gif_is[indx] == 0) return 0;
+    const ESGUI_GIF_T *g = (const ESGUI_GIF_T *)page->items[indx].icon;
+    return (g != ESGUI_NULL && g->frames != ESGUI_NULL) ? (eui_uint16_t)g->frames[0].w : 0;
+}
+
+/**
+ * @brief 绘制 BMP 列表弹窗特殊条目（GIF）：名称末尾带 "\x03/7" 标记的项
+ * @param page 页面指针
+ * @param indx 条目索引
+ * @return 占用的宽度（像素，取第 0 帧宽）；非 GIF 条目返回 0
+ * @note  行为：
+ *        - 选中（page->focus_idx == indx）：把条目 icon 指向的 ESGUI_GIF_T
+ *          描述符装载到弹窗播放槽，调用 ESGUI_GIFDraw 循环播放，
+ *          时刻取 anim_get_tick()；焦点切换到不同 GIF 时播放槽自动重建。
+ *        - 未选中：仅绘制第 0 帧（静态图），并重置播放槽，
+ *          保证再次选中时从第 0 帧重新开始。
+ */
+static eui_uint16_t esgui_bmp_list_popwindow_special_item_draw(ESGUI_MenuPage_T *page, eui_uint16_t indx)
+{
+    if (page == ESGUI_NULL || page->draw_data == ESGUI_NULL || page->render_ctx == ESGUI_NULL) return 0;
+    if (indx >= page->item_num) return 0;
+    ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+    if (indx >= ESGUI_BMP_MENU_MAX_ITEMS || dat->gif_is[indx] == 0) return 0;
+
+    /* 条目 icon → GIF 描述符（帧数组与帧间隔均由描述符记录） */
+    const ESGUI_GIF_T *desc = (const ESGUI_GIF_T *)page->items[indx].icon;
+    if (desc == ESGUI_NULL || desc->frames == ESGUI_NULL || desc->frame_count == 0) return 0;
+
+    ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
+    CanvasStripIter *c_it = page->render_ctx;
+    int x = window->window_x + dat->content_padding + page->items[0].x + bmp_item_rel_x(page, indx);
+    int y = window->window_y + page->items[indx].y;
+
+    if (indx == page->focus_idx) {
+        /* 选中：循环播放。描述符变化（焦点从别的 GIF 移来）时，
+         * 把描述符的帧数组/帧间隔/循环次数装载进播放槽（播放状态清零） */
+        if (dat->gif_desc != desc) {
+            ESGUI_GIFInit(&dat->gif_play,
+                          desc->frames, desc->frame_count,
+                          desc->delays, desc->delay_ms, desc->loop_count);
+            dat->gif_desc = desc;
+        }
+        ESGUI_GIFDraw(c_it->canvas, &dat->gif_play, x, y, EUI_MODE_SET,
+                      anim_get_tick(), ESGUI_GIF_PLAY_LOOP);
+    } else {
+        /* 未选中：显示第 0 帧；若播放槽正绑定本 GIF，重置其播放状态 */
+        if (dat->gif_desc == desc) {
+            ESGUI_GIFReset(&dat->gif_play);
+        }
+        eui_draw_bitmap(c_it->canvas, x, y, &desc->frames[0], 1);
+    }
+    return (eui_uint16_t)desc->frames[0].w;
+}
+#endif /* ESGUI_ENABLE_GIF */
+
 /**
  * @brief BMP 列表弹窗默认虚函数表
  */
@@ -4141,11 +4607,19 @@ static const esgui_page_vtable_t bmp_list_popwindow_vtable = {
     .on_create                = esgui_default_bmp_list_popwindow_on_create,
     .on_destroy               = esgui_default_bmp_list_popwindow_on_destroy,
     .on_draw                  = esgui_default_bmp_list_popwindow_on_draw,
+#if ESGUI_ENABLE_GIF
+    .special_item_draw        = esgui_bmp_list_popwindow_special_item_draw,
+    .get_special_item_draw_w  = esgui_bmp_list_popwindow_get_special_item_draw_w,
+#else
     .special_item_draw        = ESGUI_NULL,
     .get_special_item_draw_w  = ESGUI_NULL,
+#endif
     .on_input                 = esgui_default_bmp_list_popwindow_on_input,
     .on_focus_change          = esgui_default_bmp_list_popwindow_on_focus_change,
     .on_page_chenge           = esgui_default_bmp_list_popwindow_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_bmp_list_popwindow_relayout,
+#endif
 };
 
 /**
@@ -4201,6 +4675,29 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
     CanvasStripIter *c_it = page->render_ctx;
     ESGUI_PopWindow_T *window = (ESGUI_PopWindow_T*)page;
     ESGUI_DEFAULT_BMP_LIST_WINDOW_DAT *dat = page->draw_data;
+#if ESGUI_ENABLE_GIF
+    /* 焦点 GIF 播放期间保持弹窗持续刷新（与普通版一致） */
+    {
+        bool focus_gif = (page->focus_idx < ESGUI_BMP_MENU_MAX_ITEMS) &&
+                         (dat->gif_is[page->focus_idx] != 0);
+        if (focus_gif) {
+            if (!anim_is_running_var(&dat->gif_pulse)) {
+                anim_t pulse = {0};
+                pulse.var         = &dat->gif_pulse;
+                pulse.exec_cb     = anim_cb_uint16;
+                pulse.start       = 0;
+                pulse.end         = 0;
+                pulse.duration    = 100;
+                pulse.path_type   = ANIM_PATH_LINEAR;
+                pulse.repeat_cnt  = 0xFFFF;   /* 无限循环 */
+                pulse.repeat_total = 0xFFFF;
+                anim_start(&pulse);
+            }
+        } else {
+            anim_stop_all(&dat->gif_pulse);
+        }
+    }
+#endif /* ESGUI_ENABLE_GIF */
     Area a = {
         window->window_x, window->window_y,
         window->window_x + window->window_w,
@@ -4222,7 +4719,7 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
     canvas_clip_push(c_it->canvas, &bmp_clip);
     eui_int16_t base_x = window->window_x + dat->content_padding + page->items[0].x;
     for (eui_uint16_t i = 0; i < page->item_num; i++) {
-        const Bitmap *bmp = page->items[i].icon;
+        const Bitmap *bmp = bmp_list_item_bitmap(page, i, dat);
         if (!bmp) continue;
         eui_int16_t rel_x = bmp_item_rel_x(page, i);
         eui_int16_t x = base_x + rel_x;
@@ -4232,7 +4729,16 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_draw(ESGUI_MenuPage_T *pag
         eui_int16_t clip_left = (eui_int16_t)(window->window_x + dat->content_padding);
         eui_int16_t clip_right = (eui_int16_t)(window->window_x + window->window_w - dat->content_padding);
         if (x + w < clip_left || x > clip_right) continue;
-        eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+#if ESGUI_ENABLE_GIF
+        if (i < ESGUI_BMP_MENU_MAX_ITEMS && dat->gif_is[i]) {
+            /* GIF 条目：绘制交给 special_item_draw
+             *（选中→循环播放，未选中→第 0 帧） */
+            esgui_bmp_list_popwindow_special_item_draw(page, i);
+        } else
+#endif /* ESGUI_ENABLE_GIF */
+        {
+            eui_draw_bitmap(c_it->canvas, x, y, bmp, 1);
+        }
         if (i == page->focus_idx) {
             eui_int32_t d_w = (eui_int32_t)dat->box_target_w - (eui_int32_t)dat->box_start_w;
             eui_int32_t d_h = (eui_int32_t)dat->box_target_h - (eui_int32_t)dat->box_start_h;
@@ -4270,6 +4776,9 @@ void esgui_default_bmp_list_scroll_title_popwindow_on_destroy(ESGUI_MenuPage_T *
         anim_stop_all(&page->items[0].x);
         anim_stop_all(&dat->box_permille);
         anim_stop_all(&dat->label_anim_y);
+#if ESGUI_ENABLE_GIF
+        anim_stop_all(&dat->gif_pulse);   /* 停止 GIF 播放保持刷新的脉冲动画 */
+#endif
         popup_data_free();
         page->draw_data = ESGUI_NULL;
     }
@@ -4280,11 +4789,19 @@ static const esgui_page_vtable_t bmp_list_scroll_title_popwindow_vtable = {
     .on_create                = esgui_default_bmp_list_scroll_title_popwindow_on_create,
     .on_destroy               = esgui_default_bmp_list_scroll_title_popwindow_on_destroy,
     .on_draw                  = esgui_default_bmp_list_scroll_title_popwindow_on_draw,
+#if ESGUI_ENABLE_GIF
+    .special_item_draw        = esgui_bmp_list_popwindow_special_item_draw,
+    .get_special_item_draw_w  = esgui_bmp_list_popwindow_get_special_item_draw_w,
+#else
     .special_item_draw        = ESGUI_NULL,
     .get_special_item_draw_w  = ESGUI_NULL,
+#endif
     .on_input                 = esgui_default_bmp_list_popwindow_on_input,
     .on_focus_change          = esgui_default_bmp_list_popwindow_on_focus_change,
     .on_page_chenge           = esgui_default_bmp_list_popwindow_on_page_change,
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+    .on_relayout              = esgui_bmp_list_popwindow_relayout,
+#endif
 };
 
 /**

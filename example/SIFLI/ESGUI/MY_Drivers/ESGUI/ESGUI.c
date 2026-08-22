@@ -9,11 +9,12 @@
 
 #if ESGUI_ENABLE_MULTITHREAD
 
+#if ESGUI_ENABLE_CMD_QUEUE
 /* ==================== 命令队列（单生产者-单消费者） ====================
  * head/tail 统一通过 ESGUI_SYNC_* 宏访问（见 ESGUI.h 编译器原子适配层）：
  *   ESGUI_SYNC_MODE=0 + GCC/Clang → 内建原子（多核安全）；
  *   其他编译器或 ESGUI_SYNC_MODE=1 → volatile（单核语义）。
- * 不变量：生产者“先写数据、后发布 head”；消费者“先读 head、再读数据、最后发布 tail”。 */
+ * 不变量：生产者"先写数据、后发布 head"；消费者"先读 head、再读数据、最后发布 tail"。 */
 
 static void esgui_cmd_queue_push(ESGUI_T *ui, const ESGUI_Cmd_T *cmd)
 {
@@ -43,8 +44,10 @@ static bool esgui_cmd_queue_pop(ESGUI_T *ui, ESGUI_Cmd_T *out)
     ESGUI_SYNC_STORE32_RELEASE(&q->tail, tail + 1);      /* 后发布 tail */
     return true;
 }
+#endif /* ESGUI_ENABLE_CMD_QUEUE */
 
 
+#if ESGUI_ENABLE_PRODUCER_BOX
 /* ==================== 生产者收件箱（多生产者收拢） ====================
  * 每个需要跨任务调用 UI 的任务持有一个收件箱（本任务=唯一生产者），
  * UI 线程在 ESGUI_Tick 内轮询所有已注册收件箱统一处理（唯一消费者）。
@@ -116,6 +119,7 @@ static bool esgui_producer_box_pop(ESGUI_ProducerBox_T *box, ESGUI_Cmd_T *out)
     ESGUI_SYNC_STORE32_RELEASE(&box->tail, tail + 1);
     return true;
 }
+#endif /* ESGUI_ENABLE_PRODUCER_BOX */
 
 #endif /* ESGUI_ENABLE_MULTITHREAD */
 
@@ -197,7 +201,7 @@ static void ESGUI_FeedKey_impl(ESGUI_T *ui, ESGUI_EventCode_t key, eui_uint32_t 
 
 /* 外部输入入口：多线程时入队（可从任意任务/中断调用），单线程时直接处理 */
 void ESGUI_FeedKey(ESGUI_T *ui, ESGUI_EventCode_t key, eui_uint32_t now_ms) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_KEY;
@@ -211,7 +215,7 @@ void ESGUI_FeedKey(ESGUI_T *ui, ESGUI_EventCode_t key, eui_uint32_t now_ms) {
 
 /* 异步入栈 */
 void ESGUI_PushPageAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || page == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ACTION;
@@ -227,7 +231,7 @@ void ESGUI_PushPageAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page) {
 
 /* 异步出栈 */
 void ESGUI_PopPageAsync(ESGUI_T *ui) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ACTION;
@@ -243,7 +247,7 @@ void ESGUI_PopPageAsync(ESGUI_T *ui) {
 
 /* 异步显示弹窗 */
 void ESGUI_ShowPopupAsync(ESGUI_T *ui, ESGUI_PopWindow_T *popup) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || popup == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ACTION;
@@ -259,7 +263,7 @@ void ESGUI_ShowPopupAsync(ESGUI_T *ui, ESGUI_PopWindow_T *popup) {
 
 /* 异步关闭弹窗 */
 void ESGUI_ClosePopupAsync(ESGUI_T *ui) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ACTION;
@@ -275,7 +279,7 @@ void ESGUI_ClosePopupAsync(ESGUI_T *ui) {
 
 /* 异步添加覆盖层 */
 void ESGUI_OverlayAddAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || ov == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_OVERLAY_ADD;
@@ -288,7 +292,7 @@ void ESGUI_OverlayAddAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov) {
 
 /* 异步移除覆盖层 */
 void ESGUI_OverlayRemoveAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || ov == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_OVERLAY_REMOVE;
@@ -301,7 +305,7 @@ void ESGUI_OverlayRemoveAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov) {
 
 /* 异步设置覆盖层可见性 */
 void ESGUI_OverlaySetVisibleAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov, bool visible) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || ov == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_OVERLAY_VISIBLE;
@@ -315,7 +319,7 @@ void ESGUI_OverlaySetVisibleAsync(ESGUI_T *ui, ESGUI_Overlay_T *ov, bool visible
 
 /* 异步执行任意菜单动作（ACT_REFRESH / ACT_EXIT_APP / 自定义动作等） */
 void ESGUI_HandleActionAsync(ESGUI_T *ui, ESGUI_MenuAction_T act) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ACTION;
@@ -329,7 +333,7 @@ void ESGUI_HandleActionAsync(ESGUI_T *ui, ESGUI_MenuAction_T act) {
 
 /* 异步启动动画：a 为动画配置，多线程时须保持有效直到 UI 线程处理 */
 void ESGUI_AnimStartAsync(ESGUI_T *ui, anim_t *a) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL || a == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ANIM_START;
@@ -343,7 +347,7 @@ void ESGUI_AnimStartAsync(ESGUI_T *ui, anim_t *a) {
 
 /* 异步停止与 var 匹配的所有动画 */
 void ESGUI_AnimStopAllAsync(ESGUI_T *ui, void *var) {
-#if ESGUI_ENABLE_MULTITHREAD
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
     if (ui == ESGUI_NULL) return;
     ESGUI_Cmd_T cmd;
     cmd.type = ESGUI_CMD_ANIM_STOP_ALL;
@@ -356,8 +360,48 @@ void ESGUI_AnimStopAllAsync(ESGUI_T *ui, void *var) {
 }
 
 
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+/* 异步运行时条目增删：投递命令由 UI 线程在 ESGUI_Tick 内执行（等效同步版）。
+ * 单线程（ESGUI_ENABLE_MULTITHREAD=0）下直接调用同步版。 */
+static void esgui_menu_item_async(ESGUI_T *ui, ESGUI_MenuPage_T *page, eui_uint16_t idx,
+                                  eui_uint8_t op, const ESGUI_MenuItem_T *item)
+{
+    if (ui == ESGUI_NULL || page == ESGUI_NULL) return;
+#if (ESGUI_ENABLE_MULTITHREAD && ESGUI_ENABLE_CMD_QUEUE)
+    ESGUI_Cmd_T cmd;
+    cmd.type = ESGUI_CMD_MENU_ITEM;
+    cmd.u.menu_item.page = page;
+    cmd.u.menu_item.idx  = idx;
+    cmd.u.menu_item.op   = op;
+    if (item != ESGUI_NULL) cmd.u.menu_item.item = *item;   /* 条目值拷贝（Remove 无需） */
+    esgui_cmd_queue_push(ui, &cmd);
+#else
+    switch (op) {
+        case ESGUI_MENU_ITEM_OP_ADD:    ESGUI_MenuPageAddItem(page, item); break;
+        case ESGUI_MENU_ITEM_OP_INSERT: ESGUI_MenuPageInsertItem(page, idx, item); break;
+        case ESGUI_MENU_ITEM_OP_REMOVE: ESGUI_MenuPageRemoveItem(page, idx); break;
+        default: break;
+    }
+#endif
+}
 
-#if ESGUI_ENABLE_MULTITHREAD
+void ESGUI_MenuPageAddItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, const ESGUI_MenuItem_T *item) {
+    esgui_menu_item_async(ui, page, 0, ESGUI_MENU_ITEM_OP_ADD, item);
+}
+
+void ESGUI_MenuPageInsertItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, eui_uint16_t idx,
+                                   const ESGUI_MenuItem_T *item) {
+    esgui_menu_item_async(ui, page, idx, ESGUI_MENU_ITEM_OP_INSERT, item);
+}
+
+void ESGUI_MenuPageRemoveItemAsync(ESGUI_T *ui, ESGUI_MenuPage_T *page, eui_uint16_t idx) {
+    esgui_menu_item_async(ui, page, idx, ESGUI_MENU_ITEM_OP_REMOVE, ESGUI_NULL);
+}
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
+
+
+
+#if (ESGUI_ENABLE_MULTITHREAD && (ESGUI_ENABLE_CMD_QUEUE || ESGUI_ENABLE_PRODUCER_BOX))
 /* 统一执行一条命令（供主命令队列与生产者收件箱共用，仅 UI 线程调用） */
 static void esgui_execute_cmd(ESGUI_T *ui, const ESGUI_Cmd_T *cmd)
 {
@@ -383,11 +427,29 @@ static void esgui_execute_cmd(ESGUI_T *ui, const ESGUI_Cmd_T *cmd)
         case ESGUI_CMD_ANIM_STOP_ALL:
             anim_stop_all(cmd->u.anim_stop_all.var);
             break;
+#if ESGUI_ENABLE_MENU_RUNTIME_ITEMS
+        case ESGUI_CMD_MENU_ITEM:
+            switch (cmd->u.menu_item.op) {
+                case ESGUI_MENU_ITEM_OP_ADD:
+                    ESGUI_MenuPageAddItem(cmd->u.menu_item.page, &cmd->u.menu_item.item);
+                    break;
+                case ESGUI_MENU_ITEM_OP_INSERT:
+                    ESGUI_MenuPageInsertItem(cmd->u.menu_item.page, cmd->u.menu_item.idx,
+                                             &cmd->u.menu_item.item);
+                    break;
+                case ESGUI_MENU_ITEM_OP_REMOVE:
+                    ESGUI_MenuPageRemoveItem(cmd->u.menu_item.page, cmd->u.menu_item.idx);
+                    break;
+                default:
+                    break;
+            }
+            break;
+#endif /* ESGUI_ENABLE_MENU_RUNTIME_ITEMS */
         default:
             break;
     }
 }
-#endif /* ESGUI_ENABLE_MULTITHREAD */
+#endif /* (ESGUI_ENABLE_MULTITHREAD && (CMD_QUEUE || PRODUCER_BOX)) */
 
 
 
@@ -395,12 +457,16 @@ void ESGUI_Tick(ESGUI_T *ui, eui_uint32_t now_ms) {
     if (ui == ESGUI_NULL) return;
 
 #if ESGUI_ENABLE_MULTITHREAD
-    /* 0. 取出并处理所有排队的命令（按键/菜单动作/覆盖层/动画，输入与渲染同属 UI 线程） */
+#if (ESGUI_ENABLE_CMD_QUEUE || ESGUI_ENABLE_PRODUCER_BOX)
+    /* 0. 取出并处理排队的命令（按键/菜单动作/覆盖层/动画/增删，输入与渲染同属 UI 线程） */
     ESGUI_Cmd_T cmd;
+#endif
+#if ESGUI_ENABLE_CMD_QUEUE
     while (esgui_cmd_queue_pop(ui, &cmd)) {
         esgui_execute_cmd(ui, &cmd);
     }
-
+#endif
+#if ESGUI_ENABLE_PRODUCER_BOX
     /* 0.5 单生产者收拢：轮询所有已注册的生产者收件箱并统一处理 */
     for (eui_uint8_t i = 0; i < ui->producer_box_count; i++) {
         ESGUI_ProducerBox_T *box = ui->producer_boxes[i];
@@ -409,6 +475,7 @@ void ESGUI_Tick(ESGUI_T *ui, eui_uint32_t now_ms) {
             esgui_execute_cmd(ui, &cmd);
         }
     }
+#endif
 #endif /* ESGUI_ENABLE_MULTITHREAD */
 
     /* 1. 先更新动画 */
